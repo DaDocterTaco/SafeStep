@@ -24,6 +24,7 @@ User Data/
 
 # Keep raw browser evidence local. Role reports remain visible to Git.
 /QA_REPORTS/*/evidence/
+/QA_REPORTS/*/.work/
 /docs/evidence/
 
 # Local recovery copies contain files outside the source commit.

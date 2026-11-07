@@ -1,0 +1,98 @@
+{
+  "title": "SafeStep Stage 1 foundation plan",
+  "record_scope": "Public excerpt of the shared foundation plan used by the feature registry test.",
+  "feature_connections": [
+    {
+      "rank": 1,
+      "feature_id": "visual_guidance",
+      "foundation_dependencies": [
+        "shell",
+        "page_bridge",
+        "coordinator"
+      ],
+      "future_delivery": "Natural-language goal to sequential accurate highlights and instructions"
+    },
+    {
+      "rank": 2,
+      "feature_id": "url_identity",
+      "foundation_dependencies": [
+        "page_bridge",
+        "evidence",
+        "feature_and_site_modules"
+      ],
+      "future_delivery": "Actual-domain and destination findings"
+    },
+    {
+      "rank": 3,
+      "feature_id": "site_trust",
+      "foundation_dependencies": [
+        "page_bridge",
+        "evidence",
+        "provider_layer",
+        "permissions_and_state"
+      ],
+      "future_delivery": "Evidence-backed trust popup with third-party input where available"
+    },
+    {
+      "rank": 4,
+      "feature_id": "download_guidance",
+      "foundation_dependencies": [
+        "page_bridge",
+        "coordinator",
+        "evidence",
+        "feature_and_site_modules"
+      ],
+      "future_delivery": "Intended-route guidance and misleading-button explanations"
+    },
+    {
+      "rank": 5,
+      "feature_id": "seller_assessment",
+      "foundation_dependencies": [
+        "provider_layer",
+        "evidence",
+        "feature_and_site_modules"
+      ],
+      "future_delivery": "Seller identity, feedback and other-listing assessment"
+    },
+    {
+      "rank": 6,
+      "feature_id": "product_assessment",
+      "foundation_dependencies": [
+        "provider_layer",
+        "evidence",
+        "feature_and_site_modules"
+      ],
+      "future_delivery": "Product-specific feedback and recurring-issue summary"
+    },
+    {
+      "rank": 7,
+      "feature_id": "automatic_navigation",
+      "foundation_dependencies": [
+        "page_bridge",
+        "coordinator",
+        "permissions_and_state"
+      ],
+      "future_delivery": "Validated supported navigation with pause, cancel and confirmation"
+    },
+    {
+      "rank": 8,
+      "feature_id": "page_cleanup",
+      "foundation_dependencies": [
+        "page_bridge",
+        "coordinator",
+        "feature_and_site_modules"
+      ],
+      "future_delivery": "Optional reversible hiding of identified ads and popups"
+    },
+    {
+      "rank": 9,
+      "feature_id": "shopping_alternatives",
+      "foundation_dependencies": [
+        "provider_layer",
+        "evidence",
+        "feature_and_site_modules"
+      ],
+      "future_delivery": "Comparable observed offers using seller and product evidence"
+    }
+  ]
+}

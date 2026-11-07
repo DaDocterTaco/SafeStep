@@ -4,6 +4,8 @@ SafeStep is a Chrome MV3 extension that guides two public tasks, one user click 
 
 **Stage 2 build for independent testing** · `stage-2-490d7abfc3ce`, SHA-256 `490d7abfc3cefa3ea7feb6ddee51b205980893e61a0580d7297d884a1d94a870`. See the [builder’s checks](docs/STAGE_2_BUILD_REPORT.json), [feature status](docs/feature-status.json), [site coverage](docs/supported-sites.md) and [source access inventory](docs/source-access.md). Evidence paths in the builder report refer to the team’s local records.
 
+During independent testing, requests for Firefox and the Moon landing selected the VLC and Phishing guides respectively. The two supported requests are described below.
+
 ## Try the verified build
 
 1. From a clean checkout with Node 24 and npm 11, run `npm ci`, `npm run build` and `npm run release:stage2`. The last command prints the unpacked path and fingerprint. In `chrome://extensions`, disable any older unpacked copy, enable **Developer mode**, choose **Load unpacked**, and select `artifacts/stage-2-490d7abfc3ce/chrome-mv3` when the printed fingerprint matches the one above.
@@ -47,7 +49,7 @@ The harness asserts Chrome’s actual `SIDE_PANEL` context, uses the toolbar act
 - `apps/extension/features/` retains all nine modules. `sites/` contains the two supported adapters, local intent rules and address parsing with pinned public-suffix data. A matching domain is not a safety verdict.
 - `apps/api/` is a loopback-only TypeScript service with six provider boundaries. Its optional credentials belong in `apps/api/.env` (see `.env.example`) or the API process environment. No provider keys belong in WXT environment variables or the browser bundle.
 
-The seven-stage roadmap retains the remaining seven features. Stage 3 (website trust and download protection) is the next development milestone after Stage 2 testing.
+The [seven-stage roadmap](RESEARCH_STATE.json) retains the remaining seven features. Stage 3 (website trust and download protection) is the next development milestone after Stage 2 testing.
 
 ## External code
 
