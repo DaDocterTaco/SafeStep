@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><title>Practice desk · SafeStep fixture</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      color: #17382f;
+      background: #f1f4eb;
+      font: 17px/1.5 system-ui;
+    }
+    header,
+    main {
+      max-width: 820px;
+      margin: auto;
+      padding: 22px;
+    }
+    header {
+      border-bottom: 1px solid #c0cbbb;
+    }
+    small {
+      color: #3e6854;
+      letter-spacing: 0.12em;
+    }
+    h1 {
+      font: 48px Georgia;
+      margin: 12px 0;
+    }
+    article {
+      background: white;
+      padding: 24px;
+      border-radius: 14px;
+      margin-top: 26px;
+    }
+    button,
+    a {
+      font: inherit;
+      color: #164635;
+      padding: 7px 12px;
+    }
+    button {
+      background: #e5f3e7;
+      border: 1px solid #679781;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    footer {
+      margin-top: 600px;
+      padding: 40px;
+    }
+    iframe {
+      height: 40px;
+      width: 180px;
+    }
+  </style>
+  <header><small>SAFESTEP / LOCAL FIXTURE</small></header>
+  <main>
+    <h1>Practice desk</h1>
+    <p>
+      A harmless page for testing the browser extension. No reviews or threat results are shown
+      here.
+    </p>
+    <article>
+      <h2>Workspace</h2>
+      <button id="settings">Practice settings</button>
+      <a href="/next?fixture_token=omit-this#private">Next practice page</a>
+      <p>
+        <a href="/help">Download now (practice label)</a> ·
+        <a href="javascript:void(0)">Unknown destination</a>
+      </p>
+      <p id="clicks">Practice button clicks: 0</p>
+      <a id="private-link" href="/account/PRIVATE_PATH_SENTINEL?ticket=PRIVATE_QUERY_SENTINEL"
+        >/account/PRIVATE_PATH_SENTINEL?ticket=PRIVATE_QUERY_SENTINEL</a
+      >
+    </article>
+    <article>
+      <h2>Privacy sample</h2>
+      <label>Sample field <input value="PRIVATE_FIELD_SENTINEL" /></label
+      ><label>Password <input type="password" value="PRIVATE_PASSWORD_SENTINEL" /></label>
+      <div contenteditable>PRIVATE_EDITABLE_SENTINEL<button>PRIVATE_NESTED_SENTINEL</button></div>
+      <button hidden>HIDDEN_SENTINEL</button>
+      <iframe title="Out of scope" srcdoc="<button>FRAME_SENTINEL</button>"></iframe>
+    </article>
+    <article>
+      <h2>Change this fixture</h2>
+      <p>Use these controls to test what happens when a page changes.</p>
+      <button id="remove">Remove practice settings</button>
+      <button id="route">Change practice route</button>
+      <button id="many">Add 40 practice controls</button>
+      <div id="extra"></div>
+    </article>
+    <footer><button id="lower">Lower practice control</button></footer>
+  </main>
+  <script>
+    let clicks = 0;
+    document.querySelector('#remove').onclick = () => document.querySelector('#settings')?.remove();
+    document.querySelector('#route').onclick = () =>
+      history.pushState({}, '', '/practice-route?private=not-for-export');
+    document.querySelector('#many').onclick = () => {
+      const fragment = document.createDocumentFragment();
+      for (let i = 1; i <= 40; i++) {
+        const el = document.createElement('button');
+        el.textContent = 'Extra practice control ' + i;
+        fragment.append(el);
+      }
+      document.querySelector('#extra').replaceChildren(fragment);
+    };
+    document.querySelector('#settings').onclick = () => {
+      document.querySelector('#clicks').textContent = 'Practice button clicks: ' + ++clicks;
+    };
+  </script>
+</html>

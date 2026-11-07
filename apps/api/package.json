@@ -1,0 +1,14 @@
+{
+  "name": "@safestep/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "start": "node --env-file-if-exists=.env dist/server.js"
+  },
+  "dependencies": {
+    "@safestep/contracts": "0.1.0"
+  }
+}

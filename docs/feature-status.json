@@ -1,0 +1,96 @@
+{
+  "milestone": "Stage 2 — visual guidance and address checks",
+  "next": "Stage 3 — website trust and download protection, after independent Stage 2 testing",
+  "features": [
+    {
+      "rank": 1,
+      "id": "visual_guidance",
+      "name": "Visual task assistant",
+      "integration_point": "apps/extension/features/visual_guidance.ts",
+      "implementation": "implemented for the two supported public workflows",
+      "live_integration": "English Wikipedia Phishing → APA and VideoLAN → Windows information page; local intent rules, no external model.",
+      "feature_verification": "Builder: both routes completed at both desktop sizes in Chrome on stage-2-490d7abfc3ce. Independent Stage 2 acceptance not run.",
+      "acceptance": "A user states a supported goal and follows accurate, sequential highlights across the task, including a settings-navigation example."
+    },
+    {
+      "rank": 2,
+      "id": "url_identity",
+      "name": "Website address verification",
+      "integration_point": "apps/extension/features/url_identity.ts",
+      "implementation": "implemented locally for the current page, proposed guide link and selected inspectable controls",
+      "live_integration": "Actual current and suggested hosts observed on both public sites. Platform URL parser and bundled tldts 7.4.19; no external reputation integration.",
+      "feature_verification": "Builder: live sites, native address fixtures, stale-link and parser boundaries verified on stage-2-490d7abfc3ce. Independent Stage 2 acceptance not run.",
+      "acceptance": "Expected domains, lookalikes and misleading subdomains produce appropriate findings based on the actual URL."
+    },
+    {
+      "rank": 3,
+      "id": "site_trust",
+      "name": "Website trust popup",
+      "integration_point": "apps/extension/features/site_trust.ts",
+      "implementation": "unimplemented",
+      "live_integration": "none",
+      "feature_verification": "not_run",
+      "acceptance": "A supported website displays a trust summary using local findings and available external evidence, with sources and an explicit missing-data state."
+    },
+    {
+      "rank": 4,
+      "id": "download_guidance",
+      "name": "Download button protection",
+      "integration_point": "apps/extension/features/download_guidance.ts",
+      "implementation": "unimplemented",
+      "live_integration": "none",
+      "feature_verification": "not_run",
+      "acceptance": "The extension compares inspectable destinations on a supported download page, explains a misleading button, and highlights the intended route."
+    },
+    {
+      "rank": 5,
+      "id": "seller_assessment",
+      "name": "Seller reputation checks",
+      "integration_point": "apps/extension/features/seller_assessment.ts",
+      "implementation": "unimplemented",
+      "live_integration": "none",
+      "feature_verification": "not_run",
+      "acceptance": "A supported seller page yields an evidence-linked summary of seller feedback, history and other listings, with identity and coverage clear."
+    },
+    {
+      "rank": 6,
+      "id": "product_assessment",
+      "name": "Product review checks",
+      "integration_point": "apps/extension/features/product_assessment.ts",
+      "implementation": "unimplemented",
+      "live_integration": "none",
+      "feature_verification": "not_run",
+      "acceptance": "A supported product page yields a summary of product-specific reviews and recurring concerns, separated from seller findings."
+    },
+    {
+      "rank": 7,
+      "id": "automatic_navigation",
+      "name": "Automatic task navigation",
+      "integration_point": "apps/extension/features/automatic_navigation.ts",
+      "implementation": "unimplemented",
+      "live_integration": "none",
+      "feature_verification": "not_run",
+      "acceptance": "A user-approved supported navigation task runs in the existing session, with progress, pause and cancel, stopping for any consequential final action."
+    },
+    {
+      "rank": 8,
+      "id": "page_cleanup",
+      "name": "Hide distracting ads and popups",
+      "integration_point": "apps/extension/features/page_cleanup.ts",
+      "implementation": "unimplemented",
+      "live_integration": "none",
+      "feature_verification": "not_run",
+      "acceptance": "A toggle hides identified distractions on a supported page and a restore action returns them without breaking essential controls."
+    },
+    {
+      "rank": 9,
+      "id": "shopping_alternatives",
+      "name": "Compare better products and sellers",
+      "integration_point": "apps/extension/features/shopping_alternatives.ts",
+      "implementation": "unimplemented",
+      "live_integration": "none",
+      "feature_verification": "not_run",
+      "acceptance": "Available comparable options display observed prices, seller and product evidence, reasons for comparison and usable source links."
+    }
+  ]
+}

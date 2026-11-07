@@ -1,0 +1,258 @@
+:root {
+  font:
+    15px/1.48 system-ui,
+    sans-serif;
+  color: #17322e;
+  background: #f6f7f2;
+  color-scheme: light;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-width: 240px;
+}
+.mast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #153c36;
+  color: white;
+  padding: 18px 16px;
+}
+.mark {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 42px;
+  border: 1px solid #94cfba;
+  border-radius: 14px 14px 18px 18px;
+  color: #c9f4da;
+  font: 700 26px Georgia;
+}
+.mast h1 {
+  font:
+    600 25px/1.05 Georgia,
+    serif;
+  margin: 0;
+}
+.mast small {
+  color: #d4e7de;
+}
+main {
+  display: grid;
+  gap: 11px;
+  padding: 13px;
+}
+section,
+details {
+  background: white;
+  border: 1px solid #d7dfd8;
+  border-radius: 12px;
+  padding: 14px;
+}
+.row,
+.progress,
+.actions,
+.modes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.row,
+.progress {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.progress {
+  padding: 10px 0;
+}
+.eyebrow,
+.kind {
+  font-size: 0.73em;
+  letter-spacing: 0.09em;
+  font-weight: 700;
+  color: #4b6158;
+}
+.badge,
+.count {
+  border-radius: 12px;
+  background: #ecefe9;
+  color: #4a554e;
+  padding: 3px 9px;
+  font-size: 0.8em;
+}
+.badge[data-on='true'] {
+  background: #d9efe5;
+  color: #155644;
+}
+h2,
+h3,
+p {
+  margin: 7px 0;
+}
+h2 {
+  font-size: 1.12em;
+  line-height: 1.3;
+}
+p {
+  color: #475c54;
+}
+small {
+  display: block;
+  color: #53675d;
+}
+.origin,
+.control,
+.notice,
+section,
+details {
+  overflow-wrap: anywhere;
+}
+.origin {
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+}
+button,
+input {
+  font: inherit;
+}
+button {
+  border: 1px solid #bacac0;
+  border-radius: 7px;
+  background: #fff;
+  color: #1a4639;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+button:hover:not(:disabled) {
+  background: #e2f2e9;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+button:focus-visible,
+summary:focus-visible,
+input:focus-visible {
+  outline: 3px solid #08775c;
+  outline-offset: 2px;
+}
+.primary {
+  width: 100%;
+  background: #19664e;
+  color: white;
+  border-color: #19664e;
+  font-weight: 650;
+}
+.primary:hover:not(:disabled) {
+  background: #13533f;
+}
+#goal {
+  width: 100%;
+  margin: 6px 0 9px;
+  padding: 9px;
+  border: 1px solid #adbeb3;
+  border-radius: 7px;
+}
+.modes button {
+  flex: 1;
+}
+.modes button[aria-pressed='true'] {
+  color: #175740;
+  background: #e4f2e9;
+  border-color: #438668;
+}
+.actions {
+  flex-wrap: wrap;
+}
+.controls {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+}
+.control {
+  display: grid;
+  justify-items: start;
+  text-align: left;
+  width: 100%;
+  margin: 3px 0;
+}
+.kind {
+  text-transform: uppercase;
+}
+.notice {
+  background: #fff3d9;
+  border-left: 3px solid #ae7424;
+  padding: 8px;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0;
+}
+summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+ol,
+ul {
+  padding-left: 20px;
+}
+details li {
+  margin: 6px 0;
+}
+a {
+  color: #125b47;
+}
+.large {
+  font-size: 18px;
+}
+.waiting {
+  padding: 15px;
+}
+.task-picker {
+  margin: 7px 0;
+}
+.choices,
+.guide-progress {
+  display: grid;
+  gap: 6px;
+  margin: 9px 0;
+}
+.guide-progress {
+  border-top: 1px solid #cad9d1;
+  padding-top: 12px;
+}
+.guide-progress strong {
+  font-size: 1.1em;
+}
+.address {
+  border-left: 3px solid #acc8b9;
+  padding-left: 9px;
+  margin: 8px 0;
+}
+.address p,
+.address small {
+  margin: 3px 0;
+}
+.hostname {
+  font-family: ui-monospace, monospace;
+  overflow-wrap: anywhere;
+}
+.flag,
+.location {
+  background: #fff3d9;
+  padding: 5px;
+}
+select {
+  display: block;
+  width: 100%;
+  font: inherit;
+  margin: 5px 0 8px;
+}
+select:focus-visible {
+  outline: 3px solid #08775c;
+}

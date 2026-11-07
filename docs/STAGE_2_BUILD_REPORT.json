@@ -1,0 +1,554 @@
+{
+  "role": "builder",
+  "stage": 2,
+  "plan": "STAGE_2_PLAN.json",
+  "status": "ready_for_independent_testing",
+  "updated_at_utc": "2026-11-07T05:56:08.807Z",
+  "build": "stage-2-490d7abfc3ce",
+  "extension_version": "0.2.0",
+  "sha256": "490d7abfc3cefa3ea7feb6ddee51b205980893e61a0580d7297d884a1d94a870",
+  "unpacked_directory": "artifacts/stage-2-490d7abfc3ce/chrome-mv3",
+  "fingerprint_definition": "SHA-256 over sorted relative paths, file sizes and bytes; scripts/stage1.mjs. Build output and frozen directory were independently rehashed after verification.",
+  "baseline": {
+    "build": "stage-1-ccfa69bd5d51",
+    "sha256": "ccfa69bd5d510b3dde8f3dd38d0c9613708d08477031227feec3e364d761ace0",
+    "builder_verification": "docs/F03_FIX_REPORT.md",
+    "tester_disposition": "QA_REPORTS/stage-1-ccfa69bd5d51-f03-report-review/REPORT.json",
+    "independent_F03": "skipped by explicit user waiver recorded by the tester; not a pass",
+    "confirmation": "QA_REPORTS/STAGE_2_CHECKLIST.md",
+    "unpacked": "artifacts/stage-1-ccfa69bd5d51/chrome-mv3",
+    "original_QA": "QA_REPORTS/stage-1-b911940b8a47-20261107T0425Z/REPORT.json",
+    "original_result": "13 pass, 1 fail (F03/SS1-01) on the older build; builder fix and screenshots verified in the separate F03 report. Stage 1 independent browser retest explicitly waived, not independently passed."
+  },
+  "implementation": {
+    "visual_guidance": "Version 1 of each of the two public adapters; local goal entry or keyboard task picker, clarification, one short instruction and one non-intercepting outline, observed progress, pause/resume/cancel/restart and user-triggered off-screen reveal. Refresh, worker recovery and unrelated navigation require deliberate continuation. Existing Stage 1 inspector remains available.",
+    "address_checks": "Current page, proposed guide link and selected generic controls. Browser URL parser resolves relative href against the actual document base. tldts 7.4.19 groups parsed hostnames including private suffixes. Expected site comes from the selected workflow/profile or a recognized exact current origin. Grouping never adds host permissions. Unexpected links, unsafe route substitutions and label/target conflicts pause guidance.",
+    "privacy": "Only bounded target metadata, document binding, time and allowlisted route facts enter the panel. Static inspection fetches no destinations. Username/password presence is represented by a flag; raw user-info and arbitrary URL tokens are excluded. The existing remote provider subject validation remains public-only.",
+    "intent_mode": "Local normalized goal matching plus a two-task picker. No external model/AI integration or key. The optional loopback service is unnecessary for either feature.",
+    "live_integration": [
+      {
+        "workflow": "wikipedia_cite_apa",
+        "start": "https://en.wikipedia.org/wiki/Phishing",
+        "goal": "Help me find the APA citation for this article.",
+        "steps": [
+          "Open Tools (or recognize an already visible Cite this page).",
+          "Choose Cite this page.",
+          "Choose APA."
+        ],
+        "completion": "Exact English Wikipedia origin and local Special:CiteThisPage + page=Phishing facts, the article-specific citation heading, and #APA_style with its heading in the viewport. No article revision ID or query token is exported."
+      },
+      {
+        "workflow": "videolan_windows_page",
+        "start": "https://www.videolan.org/",
+        "goal": "Help me find VLC for Windows.",
+        "steps": [
+          "Open the VLC menu.",
+          "Choose the menu’s Download link to /vlc/.",
+          "Choose Windows in Official Downloads."
+        ],
+        "completion": "Exact official HTTPS Windows page /vlc/download-windows.html and the VLC for Windows heading. Ends before any installer or mirror request."
+      }
+    ],
+    "remaining_features": "All nine ranked entries are retained in docs/feature-status.json. The other seven are planned and have no new implementation, live integration or verification."
+  },
+  "run_and_load": {
+    "existing_artifact": "In normal desktop Chrome, disable an older SafeStep copy if loaded. At chrome://extensions turn on Developer mode, click Load unpacked, and choose artifacts/stage-2-490d7abfc3ce/chrome-mv3. On each supported site click the SafeStep toolbar action for access, enter the listed goal, then press Help me. No server or key is required.",
+    "source_build": [
+      "From the project root on Node 24 / npm 11, run npm.cmd ci in a clean checkout.",
+      "npm.cmd run build",
+      "npm.cmd run release:stage2 (prints its own directory and fingerprint; compare before calling it this release)."
+    ],
+    "fixtures": [
+      "npm.cmd run fixture",
+      "http://localhost:4174/ — manual inspection and highlight regressions.",
+      "http://localhost:4174/addresses — harmless labelled address cases. In SafeStep open Check page and link addresses, choose the VideoLAN profile and click Inspect addresses; select links, do not visit them.",
+      "The Chrome harness serves labelled in-memory guide variants only inside its disposable test profiles; no fixture origin is added to the product workflow allowlist."
+    ],
+    "optional_service": "npm.cmd run api (health at http://127.0.0.1:4317/health); stop a manual instance before test:chrome, which starts its own API.",
+    "reproduce_powershell": [
+      "npm.cmd run typecheck",
+      "npm.cmd test",
+      "npm.cmd run build",
+      "$env:SAFESTEP_BUNDLE = 'artifacts/stage-2-490d7abfc3ce/chrome-mv3'",
+      "npm.cmd run test:chrome:stage2",
+      "npm.cmd run test:chrome",
+      "npm.cmd run test:chrome:f03"
+    ],
+    "focused_variants_retest": [
+      "$env:SAFESTEP_CASES = 'edges'",
+      "$env:SAFESTEP_EDGE = 'variants'",
+      "npm.cmd run test:chrome:stage2",
+      "Remove-Item Env:SAFESTEP_CASES,Env:SAFESTEP_EDGE"
+    ],
+    "desktop_notes": "Chrome for Windows (or CHROME_PATH); run in an isolated profile, with public network access for live sites. Requested sizes are measured CSS content viewports with panel closed, at 100% zoom."
+  },
+  "builder_verification": {
+    "summary": {
+      "passed": 23,
+      "failed": 0,
+      "blocked": 0,
+      "not_run": 0,
+      "scope": "23 Stage 2 acceptance cases as last observed; see preserved first run and same-build fixture retest below."
+    },
+    "development_checks": [
+      {
+        "command": "npm.cmd run typecheck",
+        "status": "pass"
+      },
+      {
+        "command": "npm.cmd test",
+        "status": "pass",
+        "tests": 18,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "command": "npm.cmd run build",
+        "status": "pass",
+        "description": "Contracts, Node API and production MV3 extension"
+      },
+      {
+        "command": "npm.cmd run release:stage2",
+        "status": "pass",
+        "artifact": "artifacts/stage-2-490d7abfc3ce/chrome-mv3"
+      }
+    ],
+    "installed_chrome": "Chrome/156.0.8078.80",
+    "chrome_checks": [
+      {
+        "command": "npm.cmd run test:chrome:stage2",
+        "status": "pass_after_targeted_retest",
+        "run_at": "2026-11-07T05:53:27.132Z",
+        "full_run": "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json",
+        "initial_result": "Four real live journeys passed, four of five fixture groups passed. Guide variations initially failed on the last assertion because the test matched previous recovery text while a new task was inspecting.",
+        "targeted_retest": {
+          "command": "SAFESTEP_CASES=edges SAFESTEP_EDGE=variants, test:chrome:stage2",
+          "checked_at_utc": "2026-11-07T05:54:15.569Z",
+          "result": "pass",
+          "evidence": "docs/evidence/stage-2-490d7abfc3ce/guide-variations-retest.json",
+          "change": "The driver now waits for the new bound document, different task ID and settled missing-article state before checking privacy and refusal. No extension files changed; same SHA-256."
+        }
+      },
+      {
+        "command": "npm.cmd run test:chrome",
+        "status": "pass",
+        "checks": 26,
+        "evidence": "docs/evidence/stage-2-490d7abfc3ce/foundation-chrome.json"
+      },
+      {
+        "command": "npm.cmd run test:chrome:f03",
+        "status": "pass",
+        "trials": [
+          {
+            "requested": {
+              "width": 1440,
+              "height": 900
+            },
+            "elapsedMs": 95001,
+            "workerAsleep": true
+          },
+          {
+            "requested": {
+              "width": 1366,
+              "height": 768
+            },
+            "elapsedMs": 95006,
+            "workerAsleep": true
+          }
+        ],
+        "evidence": "docs/evidence/stage-2-490d7abfc3ce/f03-idle.json"
+      }
+    ],
+    "dimensions": [
+      {
+        "zoom_percent": 100,
+        "closed_content": [
+          1440,
+          900
+        ],
+        "open_page": [
+          1054,
+          892
+        ],
+        "native_panel": [
+          360,
+          908
+        ],
+        "outer_window": [
+          1440,
+          1043
+        ]
+      },
+      {
+        "zoom_percent": 100,
+        "closed_content": [
+          1366,
+          768
+        ],
+        "open_page": [
+          980,
+          760
+        ],
+        "native_panel": [
+          360,
+          776
+        ],
+        "outer_window": [
+          1366,
+          911
+        ]
+      }
+    ],
+    "live_runs": [
+      {
+        "site": "wiki",
+        "width": 1440,
+        "height": 900,
+        "status": "pass",
+        "installerRequests": 0
+      },
+      {
+        "site": "video",
+        "width": 1440,
+        "height": 900,
+        "status": "pass",
+        "installerRequests": 0
+      },
+      {
+        "site": "wiki",
+        "width": 1366,
+        "height": 768,
+        "status": "pass",
+        "installerRequests": 0
+      },
+      {
+        "site": "video",
+        "width": 1366,
+        "height": 768,
+        "status": "pass",
+        "installerRequests": 0
+      }
+    ],
+    "guide_idle": [
+      {
+        "width": 1440,
+        "elapsed_ms": 96513,
+        "worker_asleep": true,
+        "panel_and_cue_agreed": true
+      },
+      {
+        "width": 1366,
+        "elapsed_ms": 96504,
+        "worker_asleep": true,
+        "panel_and_cue_agreed": true
+      }
+    ],
+    "evidence_files": {
+      "full": "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json",
+      "targeted": "docs/evidence/stage-2-490d7abfc3ce/guide-variations-retest.json",
+      "foundation": "docs/evidence/stage-2-490d7abfc3ce/foundation-chrome.json",
+      "f03": "docs/evidence/stage-2-490d7abfc3ce/f03-idle.json",
+      "screenshot_directory": "docs/evidence/stage-2-490d7abfc3ce/",
+      "paired_examples": [
+        [
+          "wiki-1440-step1-page.png",
+          "wiki-1440-step1-panel.png"
+        ],
+        [
+          "wiki-1366-complete-page.png",
+          "wiki-1366-complete-panel.png"
+        ],
+        [
+          "video-1440-complete-page.png",
+          "video-1440-complete-panel.png"
+        ],
+        [
+          "video-1366-step3-page.png",
+          "video-1366-step3-panel.png"
+        ],
+        [
+          "fixture-1366-idle-page.png",
+          "fixture-1366-idle-panel.png"
+        ],
+        [
+          "fixture-1440-revealed-page.png",
+          "fixture-1440-revealed-panel.png"
+        ],
+        [
+          "fixture-mismatch-page.png",
+          "fixture-mismatch-panel.png"
+        ]
+      ]
+    },
+    "acceptance": [
+      {
+        "id": "S2-G01",
+        "status": "pass",
+        "expected": "Wikipedia goal reaches the Phishing citation view and APA section through real user-clicked steps.",
+        "observed": "Live Chrome: both sizes. Tools → Cite this page → APA; a single aligned outline at each step. The final Wikipedia document identified Phishing and the APA heading intersected the viewport.",
+        "evidence": [
+          "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json"
+        ]
+      },
+      {
+        "id": "S2-G02",
+        "status": "pass",
+        "expected": "VideoLAN goal reaches the official Windows page through the supported route and ends before requesting a file.",
+        "observed": "Live Chrome: both sizes. VLC → Download → Windows; the final official Windows path and heading were verified. The installer request guard counted zero requests.",
+        "evidence": [
+          "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json"
+        ]
+      },
+      {
+        "id": "S2-G03",
+        "status": "pass",
+        "expected": "At least the three listed goal variants for each workflow resolve correctly; ambiguous requests get a short choice.",
+        "observed": "All six specified paraphrases selected the correct workflow in the native panel and in unit tests. An ambiguous goal offered exactly the two supported tasks. The keyboard picker started the specified task.",
+        "evidence": [
+          "docs/evidence/stage-2-490d7abfc3ce/guide-variations-retest.json",
+          "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json",
+          "tests/stage2.test.ts"
+        ]
+      },
+      {
+        "id": "S2-G04",
+        "status": "pass",
+        "expected": "Unsupported sites or tasks produce a clear response without invented targets or completed results.",
+        "observed": "Unsupported free text showed supported choices without creating a task. A VideoLAN goal on the labelled Wikipedia document paused with a supported-page explanation and no outline.",
+        "evidence": [
+          "docs/evidence/stage-2-490d7abfc3ce/guide-variations-retest.json",
+          "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json"
+        ]
+      },
+      {
+        "id": "S2-G05",
+        "status": "pass",
+        "expected": "The guide handles an already-open menu or completed destination, missing target, duplicate label and unexpected navigation through verified state or a recoverable stop.",
+        "observed": "Starting with the menu open selected the second step. An ineffective click did not advance; duplicate, hidden/removed controls and unrelated navigation paused. Restarting at each live completed destination recognized completion without another website click.",
+        "evidence": [
+          "docs/evidence/stage-2-490d7abfc3ce/guide-variations-retest.json",
+          "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json"
+        ]
+      },
+      {
+        "id": "S2-G06",
+        "status": "pass",
+        "expected": "Highlights and instructions remain usable during scrolling, resizing and native-panel layout changes at the two recorded desktop targets.",
+        "observed": "At both sizes the cue stayed aligned after resize, scroll, closing and reopening the native panel. The overlay passed pointer events. Actual website clicks progressed both live tasks.",
+        "evidence": [
+          "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json"
+        ]
+      },
+      {
+        "id": "S2-G07",
+        "status": "pass",
+        "expected": "Pause, cancel, a late response and switching tabs cannot advance or affect the wrong task or document.",
+        "observed": "Held a real guide snapshot reply after the bridge produced it. Cancelling or switching active tabs before delivery prevented stale work on either tab. Pause/resume and cancel removed or restored only the current task’s cue.",
+        "evidence": [
+          "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json",
+          "docs/evidence/stage-2-490d7abfc3ce/foundation-chrome.json"
+        ]
+      },
+      {
+        "id": "S2-G08",
+        "status": "pass",
+        "expected": "Refresh or worker recovery preserves appropriate task metadata, reinspects and requires deliberate continuation rather than replaying work.",
+        "observed": "Refreshing during a step kept the task paused and discarded the prior document binding. A cold worker re-inspected and cleared the outline; only explicit Resume highlighted again. No page action replayed.",
+        "evidence": [
+          "docs/evidence/stage-2-490d7abfc3ce/guide-variations-retest.json",
+          "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json",
+          "docs/evidence/stage-2-490d7abfc3ce/foundation-chrome.json"
+        ]
+      },
+      {
+        "id": "S2-G09",
+        "status": "pass",
+        "expected": "The recognized Wikipedia menu is targetable without private input values being collected or exposed.",
+        "observed": "The live Wikipedia menu used its visible associated label. The labelled checkbox and neighboring private input contained a marker that never appeared in the wire view. Generic private input/embedded-frame boundary tests also passed.",
+        "evidence": [
+          "docs/evidence/stage-2-490d7abfc3ce/guide-variations-retest.json",
+          "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json",
+          "docs/evidence/stage-2-490d7abfc3ce/foundation-chrome.json"
+        ]
+      },
+      {
+        "id": "S2-G10",
+        "status": "pass",
+        "expected": "Wikipedia completion uses only approved local route facts; arbitrary query tokens stay excluded.",
+        "observed": "Completion required the allowlisted article route, Phishing citation heading and visible APA section. A fixture with a plausible URL, a wrong article heading and an arbitrary query marker paused; the view excluded that marker. No arbitrary query is exported in guide facts.",
+        "evidence": [
+          "docs/evidence/stage-2-490d7abfc3ce/guide-variations-retest.json",
+          "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json",
+          "tests/stage2.test.ts"
+        ]
+      },
+      {
+        "id": "S2-G11",
+        "status": "pass",
+        "expected": "On an unchanged page, an idle cue remains consistent with panel status beyond the earlier 77-95 second failure window. If it expires, the user sees the accurate state and can recover it without a stale-reference loop.",
+        "observed": "At both sizes the guided outline and native panel still agreed after more than 96 seconds with the worker asleep. The original manual F03 trial also exercised first re-selection, explicit clear, removal and cancel after 95 seconds.",
+        "evidence": [
+          "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json",
+          "docs/evidence/stage-2-490d7abfc3ce/f03-idle.json"
+        ]
+      },
+      {
+        "id": "S2-G12",
+        "status": "pass",
+        "expected": "A target below the viewport has a clear location hint; the user's Show me action reveals and highlights the freshly validated target without activating it.",
+        "observed": "A below-viewport cue showed a direction hint. Keyboard Show me under reduced motion scrolled and outlined without activating the fixture; removing the target rejected the prior reveal. Show me also revealed the live VideoLAN Windows link at both sizes.",
+        "evidence": [
+          "docs/evidence/stage-2-490d7abfc3ce/guide-variations-retest.json",
+          "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json"
+        ]
+      },
+      {
+        "id": "S2-U01",
+        "status": "pass",
+        "expected": "Expected host findings for the two live sites identify actual hosts and do not say the site is safe.",
+        "observed": "Both live workflows displayed the actual hostname and registered domain in their document-bound address observations, with expected_host and the explicit limits of an address check.",
+        "evidence": [
+          "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json",
+          "tests/stage2.test.ts"
+        ]
+      },
+      {
+        "id": "S2-U02",
+        "status": "pass",
+        "expected": "A harmless deceptive-subdomain fixture and a user-info fixture are identified from their actual hosts, without visiting those destinations.",
+        "observed": "Labelled links with embedded-brand deception and synthetic user-info were identified from their actual parsed hosts; serialized observations omitted the private marker. No destination was visited.",
+        "evidence": [
+          "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json",
+          "tests/stage2.test.ts"
+        ]
+      },
+      {
+        "id": "S2-U03",
+        "status": "pass",
+        "expected": "A bounded typo fixture produces a similarity warning with uncertainty, not a definitive fraud claim.",
+        "observed": "The native panel reported similarity for a one-letter typo. Unit cases included insertion and transposition. The wording states this is a clue rather than a fraud determination.",
+        "evidence": [
+          "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json",
+          "tests/stage2.test.ts"
+        ]
+      },
+      {
+        "id": "S2-U04",
+        "status": "pass",
+        "expected": "A documented VideoLAN subdomain relationship is distinguished from exact workflow-host permission; no arbitrary subdomain is silently authorized.",
+        "observed": "get.videolan.org and an unlisted sibling were both grouped with videolan.org while denied exact workflow permission. HTTP and a nondefault port were also denied in the parser tests.",
+        "evidence": [
+          "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json",
+          "tests/stage2.test.ts"
+        ]
+      },
+      {
+        "id": "S2-U05",
+        "status": "pass",
+        "expected": "Private hosting tenants, multi-label suffixes, normalized case and trailing dots do not break identity boundaries.",
+        "observed": "Verified separate GitHub Pages tenant boundaries, example.co.uk, uppercase and trailing-dot variants; normalization for identity did not expand the exact origin allowlist.",
+        "evidence": [
+          "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json",
+          "tests/stage2.test.ts"
+        ]
+      },
+      {
+        "id": "S2-U06",
+        "status": "pass",
+        "expected": "International names, IP addresses, local or unknown domains and invalid inputs have honest informative results without blanket fraud labels.",
+        "observed": "The native panel handled ASCII form of an IDN, IPv4/IPv6, localhost, unknown suffixes and invalid input. Tests also covered no expected site and retained public-only provider subjects.",
+        "evidence": [
+          "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json",
+          "tests/stage2.test.ts"
+        ]
+      },
+      {
+        "id": "S2-U07",
+        "status": "pass",
+        "expected": "Relative destinations use the actual base URI; script-only and redirect outcomes remain limited or unknown.",
+        "observed": "A localhost fixture with a different document base resolved a relative link to www.videolan.org. Script-only controls, blob/data links and redirect uncertainty remained limited; inspection initiated no destination requests.",
+        "evidence": [
+          "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json",
+          "tests/stage2.test.ts"
+        ]
+      },
+      {
+        "id": "S2-U08",
+        "status": "pass",
+        "expected": "Visible URL text can be compared with its actual href; ordinary external references are described without a maliciousness assumption.",
+        "observed": "A URL label naming VideoLAN with an example.org href triggered a separate label-mismatch flag. A normal external reference was described neutrally.",
+        "evidence": [
+          "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json",
+          "tests/stage2.test.ts"
+        ]
+      },
+      {
+        "id": "S2-U09",
+        "status": "pass",
+        "expected": "A changed destination or stale document invalidates previously displayed guide evidence before a new suggested step.",
+        "observed": "Changing the proposed href to an unexpected host cleared the cue, invalidated the previous reference and displayed the actual host. A stale reveal and prior-document requests were rejected.",
+        "evidence": [
+          "docs/evidence/stage-2-490d7abfc3ce/guide-variations-retest.json",
+          "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json",
+          "docs/evidence/stage-2-490d7abfc3ce/foundation-chrome.json"
+        ]
+      },
+      {
+        "id": "S2-R01",
+        "status": "pass",
+        "expected": "Affected Stage 1 permission, cancellation, restart, privacy, message-validation and tab-isolation regressions pass on the new build.",
+        "observed": "The frozen bundle passed the foundation Chrome checks for toolbar and optional access, denial/grant/removal, stale and late messages, cancellation, worker restart, private fields, tab and document isolation; boundary tests covered invalid/oversized input.",
+        "evidence": [
+          "docs/evidence/stage-2-490d7abfc3ce/foundation-chrome.json",
+          "tests/stage2.test.ts",
+          "docs/evidence/stage-2-490d7abfc3ce/f03-idle.json"
+        ]
+      },
+      {
+        "id": "S2-R02",
+        "status": "pass",
+        "expected": "The native panel is keyboard-usable and readable; all nine modules remain represented with accurate implementation status.",
+        "observed": "Both native panel sizes supported keyboard task selection, Show me, pause/resume, cancel and restart. Focus was checked on named controls; progress used step text and one outline. Registry showed all nine in order: two available, seven planned.",
+        "evidence": [
+          "docs/evidence/stage-2-490d7abfc3ce/stage2-full-run.json",
+          "tests/stage2.test.ts"
+        ]
+      }
+    ]
+  },
+  "progress_and_fixes": [
+    {
+      "baseline": "Checked current independent tester report and checklist before shared changes. Recorded the user’s waiver instead of assuming a pass; preserved both named Stage 1 artifacts."
+    },
+    {
+      "at": "2026-11-07T05:40:30.445Z",
+      "finding": "First candidate paused on Wikipedia Tools: the painted label is aria-hidden because the associated checkbox is its accessible control. VideoLAN reached the Windows page with zero installer requests; the driver initially sampled the old completion on restart.",
+      "fix": "Allowed only that exact visible label/checkbox association on the supported article. The restart check now waits for a distinct completed task."
+    },
+    {
+      "at": "2026-11-07T05:42:11.352Z",
+      "result": "Both real routes passed at both target sizes. Harmless fixture trials confirmed idle consistency, stale-target rejection, keyboard use and cancellation. Tightened article-specific completion and explicit continuation after worker wake before freezing."
+    },
+    {
+      "at": "2026-11-07T05:53:27.132Z",
+      "result": "Final frozen artifact completed all four live routes, both long idle regressions, address and late-reply fixtures; the wrong-article assertion needed a more specific wait."
+    },
+    {
+      "at": "2026-11-07T05:54:15.569Z",
+      "result": "Guide variations passed on the same artifact after the test-driver-only correction. All 23 builder cases have passing evidence."
+    }
+  ],
+  "data_source_readiness": "Live public DOM and locally bundled suffix data only. The six remote provider interfaces remain unintegrated; no reputation, reviews, offers, safety scores or model results were obtained. No installer requested or executed.",
+  "known_limitations": [
+    "These are two English desktop workflows with bounded public selectors. Other pages, private/logged-in workflows, closed shadow roots, iframes and restricted Chrome pages are outside support. Site redesigns can trigger a recoverable stop.",
+    "The generic inspector reads up to 32 visible controls. Only the two workflow adapters use separate targeted lookup. Static addresses cannot certify site safety, later redirects, script-driven destinations, downloads or sellers. Typo and IDN clues are not fraud verdicts.",
+    "Tests used the actual installed Chrome and its native side panel with browser-driven user input. No human participant usability study, independent Stage 2 QA or later-stage feature testing was run."
+  ],
+  "blockers": [],
+  "not_run_outside_builder_scope": [
+    "Dedicated tester’s independent Stage 2 run: awaiting user handoff.",
+    "Human usability study and other seven features: not run for this milestone."
+  ],
+  "next_action": "User gives the identified build to the dedicated tester; use QA_REPORTS/STAGE_2_CHECKLIST.md. Stage 3 (website trust and download protection) follows independent Stage 2 testing and is not started here.",
+  "tester_handoff": "Stage 2 is ready for independent testing. Load artifacts/stage-2-490d7abfc3ce/chrome-mv3 (SHA-256 490d7abfc3cefa3ea7feb6ddee51b205980893e61a0580d7297d884a1d94a870). Read docs/STAGE_2_BUILD_REPORT.json and QA_REPORTS/STAGE_2_CHECKLIST.md. Run all 23 cases, including both live workflows at 1440×900 and 1366×768, 100% zoom, in the native panel. Record your loaded fingerprint, actual dimensions and independent observations under a new QA_REPORTS run. Stop at the Windows information page before any installer."
+}

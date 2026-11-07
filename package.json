@@ -1,0 +1,35 @@
+{
+  "name": "safestep",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=24.0.0 <25",
+    "npm": ">=11"
+  },
+  "scripts": {
+    "contracts": "npm run build -w @safestep/contracts",
+    "typecheck": "npm run contracts && npm run typecheck -w @safestep/extension && npm run typecheck -w @safestep/api",
+    "build": "npm run contracts && npm run build -w @safestep/api && npm run build -w @safestep/extension",
+    "dev": "npm run contracts && npm run dev -w @safestep/extension",
+    "api": "npm run contracts && npm run build -w @safestep/api && npm start -w @safestep/api",
+    "fixture": "node tests/fixtures/serve.mjs",
+    "test": "npm run contracts && tsx --test tests/*.test.ts",
+    "test:chrome": "node tests/chrome.mjs",
+    "test:chrome:f03": "node tests/chrome-f03.mjs",
+    "release:stage1": "node scripts/stage1.mjs",
+    "release:stage2": "node scripts/stage1.mjs 2",
+    "test:chrome:stage2": "node tests/chrome-stage2.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "prettier": "3.9.10",
+    "puppeteer-core": "25.16.0",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  }
+}

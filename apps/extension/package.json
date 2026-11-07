@@ -1,0 +1,25 @@
+{
+  "name": "@safestep/extension",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "wxt build -b chrome",
+    "dev": "wxt -b chrome",
+    "typecheck": "wxt prepare && tsc --noEmit"
+  },
+  "dependencies": {
+    "@safestep/contracts": "0.1.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "tldts": "7.4.19"
+  },
+  "devDependencies": {
+    "@types/chrome": "0.3.7",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@wxt-dev/module-react": "1.2.2",
+    "vite": "8.3.6",
+    "wxt": "0.21.5"
+  }
+}
