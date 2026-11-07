@@ -1,0 +1,2 @@
+# The bundler preserves this template's newlines in the unpacked side panel.
+apps/extension/entrypoints/sidepanel/index.html text eol=lf
