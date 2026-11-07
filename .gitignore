@@ -1,0 +1,30 @@
+# Dependencies and generated output
+node_modules/
+dist/
+.output/
+.wxt/
+*.tsbuildinfo
+coverage/
+npm-debug.log*
+
+# Local provider configuration
+.env
+.env.*
+!.env.example
+
+# Temporary browser data and frozen build directories
+.test-artifacts/
+artifacts/
+safestep-chrome-test-*/
+.chrome-profile/
+chrome-profile/
+chrome-user-data/
+User Data/
+*.har
+
+# Keep raw browser evidence local. Role reports remain visible to Git.
+/QA_REPORTS/*/evidence/
+/docs/evidence/
+
+# Local recovery copies contain files outside the source commit.
+/.local-backups/
