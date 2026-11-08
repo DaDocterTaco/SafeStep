@@ -33,6 +33,7 @@ import {
   pilotCandidates,
   wikiCitationSubject,
   wikiCurrentSection,
+  wikiExportGoal,
   safeLabel,
   validatedChatRoute,
   type ChatRouteInput,
@@ -283,7 +284,7 @@ function qualifiedSubjects(goal: string) {
 function relevantControls(input: StepInput) {
   const { headings, controls, path } = input.snapshot;
   if(input.profile==='catalog' || input.profile==='storefront' || (input.profile==='publisher'&&!input.download) ||
-    (input.profile==='wikipedia'&&(wikiCitationSubject(input.goal)||wikiCurrentSection(input.goal)))) {
+    (input.profile==='wikipedia'&&(wikiCitationSubject(input.goal)||wikiCurrentSection(input.goal)||wikiExportGoal(input.goal)))) {
     const eligible=pilotCandidates(input.goal,input.snapshot);
     if(eligible)return eligible;
   }

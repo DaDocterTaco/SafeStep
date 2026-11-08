@@ -69,7 +69,7 @@ export function OutsideFindings({check,send}:{check?:ProtectionView;send:Send}) 
     {warnings.map(r=><ThreatReceipt key={r.scope+r.url} r={r}/>)}
     {check?.threatNotice && <p role="status">{check.threatNotice}</p>}
     {!current && !check?.threatNotice && <p>No Google Web Risk lookup was performed for this check.</p>}
-    {check && check.status !== 'private' && (check.threatHome || check.threatPage) ? <details>
+    {check && (check.threatHome || check.threatPage) ? <details>
       <summary>Request one threat lookup</summary>
       <p>Choosing a button sends the displayed address to the paired service for a Google Web Risk lookup if enabled. The service does not send cookies or form contents.</p>
       <p>{threatAccuracyNotice}</p>

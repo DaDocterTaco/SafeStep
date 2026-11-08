@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { FeatureId } from './features.js';
 import { FileProfile } from './review.js';
 import { CompareMode } from './comparison.js';
-import { publicPath, profileForPage } from './assist.js';
+import { publicPath, profileForPage, shareablePathShape } from './assist.js';
 import { isPublicComparisonText } from './comparison-privacy.js';
 import {
   mozillaReviewScope,
@@ -70,7 +70,7 @@ export function chatRouteSite(raw: string): { origin: string; path: string | nul
       )
     )
       return null;
-    if (publicPath(u, 'experimental') !== null) return { origin: u.origin, path: u.pathname };
+    if (shareablePathShape(u, 'experimental') !== null) return { origin: u.origin, path: u.pathname };
     // A descriptive public listing name may trip the generic opaque-segment
     // guard. Never transmit that name. Check its segments against the same
     // private/control-path policy, then expose only the storefront origin.
@@ -79,7 +79,7 @@ export function chatRouteSite(raw: string): { origin: string; path: string | nul
       return null;
     const split = new URL(u);
     split.pathname = '/' + words.join('/');
-    if (publicPath(split, 'experimental') === null) return null;
+    if (shareablePathShape(split, 'experimental') === null) return null;
     return { origin: u.origin, path: null };
   }
   const path = publicPath(u, profileForPage(u));

@@ -11,6 +11,7 @@ import {
   type AssistAction,
   wikiCitationSubject,
   wikiCurrentSection,
+  wikiExportGoal,
 } from '@safestep/contracts';
 import { wikipediaControl, wikipediaForm } from './public-search';
 import {catalogSearchForm,catalogReadings,pilotControl,pilotCompletion,wikiAmbiguity} from './site-capabilities';
@@ -203,17 +204,15 @@ export const signature = (el: HTMLElement,goal='') => {
   return e ? JSON.stringify(e) : null;
 };
 export function hit(el: HTMLElement) {
-  const r = el.getBoundingClientRect(),
-    l = Math.max(0, r.left),
-    t = Math.max(0, r.top),
-    w = Math.min(innerWidth, r.right) - l,
-    h = Math.min(innerHeight, r.bottom) - t;
-  if (w <= 0 || h <= 0 || getComputedStyle(el).pointerEvents === 'none') return false;
-  return [
-    [0.5, 0.5],
-    [0.2, 0.6],
-    [0.8, 0.4],
-  ].some(([x, y]) => el.contains(document.elementFromPoint(l + w * x!, t + h * y!)));
+  if(getComputedStyle(el).pointerEvents==='none')return false;
+  // A wrapped link has a separate box on each line. Sampling their enclosing
+  // rectangle can hit surrounding text even while the link itself is exposed.
+  return [...el.getClientRects()].slice(0,16).some(r=>{
+    const l=Math.max(0,r.left),t=Math.max(0,r.top),
+      w=Math.min(innerWidth,r.right)-l,h=Math.min(innerHeight,r.bottom)-t;
+    return w>0 && h>0 && [[0.5,0.5],[0.2,0.6],[0.8,0.4]].some(([x,y])=>
+      el.contains(document.elementFromPoint(l+w*x!,t+h*y!)));
+  });
 }
 function sectionId(e: HTMLElement) {
   const link = e.querySelector<HTMLAnchorElement>('a[href^="#"]'),
@@ -431,9 +430,9 @@ export function scanAssist(goal: string, terms: string[] = [], previous?: Map<st
       seen.add(el);
     }
   }
-  if(profile==='wikipedia' && wikiCitationSubject(goal)){
+  if(profile==='wikipedia' && (wikiCitationSubject(goal)||wikiExportGoal(goal))){
     const targets=[document.getElementById('vector-page-tools-dropdown-checkbox'),
-      ...document.querySelectorAll<HTMLElement>('#t-cite a[href],main h3#APA_style')];
+      ...document.querySelectorAll<HTMLElement>('#t-cite a[href],#coll-download-as-rl a[href],main h3#APA_style')];
     for(const el of targets){
       const f=el && eligible(el,goal);
       if(!el || !f || seen.has(el))continue;
@@ -549,7 +548,7 @@ export function scanAssist(goal: string, terms: string[] = [], previous?: Map<st
   let complete: string | null = pilotCompletion(goal,url,headingTextVisible);
   const ambiguity=profile==='wikipedia'?wikiAmbiguity(goal,url):undefined;
   if (!complete && !ambiguity && (profile === 'wikipedia' || profile === 'experimental'||profile==='storefront') &&
-    !(profile==='wikipedia' && (wikiCitationSubject(goal)||wikiCurrentSection(goal))))
+    !(profile==='wikipedia' && (wikiCitationSubject(goal)||wikiCurrentSection(goal)||wikiExportGoal(goal))))
     complete = verifiedPublicHeading(goal, url, profile);
   if (expected) {
     const main = roots[0]!;

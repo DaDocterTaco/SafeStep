@@ -1,5 +1,5 @@
 import {catalogGoal,catalogKinds,catalogOrigin,catalogPrices,catalogSorts,platformSelection,publicCatalogPath,publisherBrowseGoal,
-  publicSearchQuery,publicPath,returnToCatalog,safeLabel,samePublicTitle,storeListing,tenantOrigin,wikiCitationPage,wikiCitationSubject,wikiCurrentSection,type PublicRef} from '@safestep/contracts';
+  publicSearchQuery,publicPath,returnToCatalog,safeLabel,samePublicTitle,storeListing,tenantOrigin,wikiCitationPage,wikiCitationSubject,wikiCurrentSection,wikiExportGoal,wikiExportTarget,type PublicRef} from '@safestep/contracts';
 
 type Candidate=Omit<PublicRef,'ref'|'visible'>;
 const shown=(el:HTMLElement)=>el.isConnected && el.checkVisibility({checkOpacity:true,checkVisibilityCSS:true}) &&
@@ -42,7 +42,7 @@ function catalogItem(e:HTMLAnchorElement){
     ? {name,url:u,price,amount:Number(price.slice(1).replaceAll(',',''))}:null;
 }
 export function pilotControl(el:HTMLElement,goal:string): Candidate|null {
-  if(location.origin==='https://en.wikipedia.org' && wikiCitationSubject(goal) &&
+  if(location.origin==='https://en.wikipedia.org' && (wikiCitationSubject(goal)||wikiExportGoal(goal)) &&
     el instanceof HTMLInputElement && el.id==='vector-page-tools-dropdown-checkbox' && el.type==='checkbox' &&
     el.getAttribute('role')==='button' && !el.disabled && el.closest('#vector-page-tools-dropdown') &&
     document.querySelectorAll('#vector-page-tools-dropdown-checkbox').length===1){
@@ -53,6 +53,15 @@ export function pilotControl(el:HTMLElement,goal:string): Candidate|null {
       return {label:'Tools for this article',role:'button',action:'toggle_known_navigation',path:null,expanded:el.checked};
   }
   if(!shown(el)||el.closest('[disabled],[aria-disabled=true i]'))return null;
+  if(wikiExportGoal(goal) && location.origin==='https://en.wikipedia.org' && el instanceof HTMLAnchorElement &&
+    el.closest('#coll-download-as-rl') && document.querySelectorAll('#coll-download-as-rl a[href]').length===1 &&
+    !el.hasAttribute('download') && !el.hasAttribute('onclick') && !el.hasAttribute('ping') && (!el.target||el.target==='_self') &&
+    !document.querySelector('base[target]:not([target="_self"])') &&
+    wikiExportTarget(new URL(el.href),location.pathname) && publicPath(new URL(location.href),'wikipedia') &&
+    (el.title==='Download this page as a PDF file' || /^Download as PDF$/i.test(plain(el)))){
+    const dest=new URL(el.href);
+    return {label:'Download this page as a PDF file',role:'link',action:'identify_article_export',path:dest.pathname+dest.search};
+  }
   if(tenantOrigin(new URL(location.href)) && returnToCatalog(goal) && el instanceof HTMLAnchorElement &&
     el.href===catalogOrigin+'/discover' && ['Shop','Marketplace'].includes(plain(el)) &&
     !el.hasAttribute('onclick') && !el.hasAttribute('download') && !el.hasAttribute('ping') &&

@@ -1,8 +1,13 @@
 import {articleMatchesQuery,publicSearchQuery,samePublicTitle,type PublicRef,type AssistSnapshot,type Step} from './assist.js';
-import {catalogGoal,platformSelection,publisherBrowseGoal,returnToCatalog,wikiCitationPage,wikiCitationSubject,wikiCurrentSection} from './site-navigation.js';
+import {catalogGoal,platformSelection,publisherBrowseGoal,returnToCatalog,wikiCitationPage,wikiCitationSubject,wikiCurrentSection,wikiExportGoal,wikiExportTarget} from './site-navigation.js';
 export function pilotCandidates(goal:string,s:AssistSnapshot):PublicRef[]|null {
   const controls=s.controls, headings=s.headings;
   if(s.profile==='wikipedia'){
+    if(wikiExportGoal(goal)){
+      const exports=controls.filter(c=>c.action==='identify_article_export' && c.path &&
+        wikiExportTarget(new URL(c.path,'https://en.wikipedia.org'),s.path.split('#')[0]!));
+      return exports.length?exports:controls.filter(c=>c.label==='Tools for this article');
+    }
     const citation=wikiCitationSubject(goal),section=wikiCurrentSection(goal);
     if(section)return [...headings,...controls].filter(c=>samePublicTitle(c.label,section));
     if(citation){

@@ -14,6 +14,21 @@ export function wikiCurrentSection(goal:string) {
   const m=/\b(?:find|show|reveal|locate|open|to)\s+(?:me\s+)?(?:the\s+)?([\p{L}][\p{L} '’-]{0,55}?)(?:\s+section)?\s+(?:on|of|in)\s+(?:this|the current|the)\s+(?:[\p{L} -]+?\s+)?(?:article|page)\b/iu.exec(goal);
   return m?.[1]?.trim()??null;
 }
+// Identify only the export control for the current public article. The link is
+// a manual handoff even when the user selected automatic navigation.
+export function wikiExportGoal(goal:string) {
+  return /\b(?:pdf|export)\b/i.test(goal) && /\b(?:this|current)\s+(?:Wikipedia\s+)?(?:article|page)\b/i.test(goal) &&
+    !/\b(?:not|never|instead|except|upload|email|send|save as|print|edit)\b/i.test(goal);
+}
+export function wikiExportTarget(raw:URL,articlePath:string) {
+  if(raw.origin!=='https://en.wikipedia.org' || raw.username || raw.password || raw.hash || raw.pathname!=='/w/index.php' ||
+    !articlePath.startsWith('/wiki/') || /[?#]/.test(articlePath))return false;
+  const q=raw.searchParams,page=q.get('page');
+  if(q.size!==3 || q.get('title')!=='Special:DownloadAsPdf' || q.get('action')!=='show-download-screen' ||
+     !page || !publicWords.test(page) || /[\w-]{28}/.test(page))return false;
+  try{return decodeURIComponent(articlePath.slice(6)).replaceAll('_',' ')===page.replaceAll('_',' ');}
+  catch{return false;}
+}
 export function wikiCitationPage(u:URL) {
   if(u.origin!=='https://en.wikipedia.org'||u.username||u.password||u.pathname!=='/w/index.php'||
     (u.hash && u.hash!=='#APA_style'))return null;

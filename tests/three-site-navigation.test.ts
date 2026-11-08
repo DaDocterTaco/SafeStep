@@ -1,9 +1,10 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {catalogGoal,catalogReadyForPlan,localPilotStep,pilotCandidates,publicCatalogPath,publicPath,publicSearchQuery,
-  storeListing,wikiCitationPage,wikiCitationSubject,wikiCurrentSection, type AssistSnapshot,type PublicRef} from '@safestep/contracts';
+  storeListing,wikiCitationPage,wikiCitationSubject,wikiCurrentSection,wikiExportGoal,wikiExportTarget, type AssistSnapshot,type PublicRef} from '@safestep/contracts';
 import {AdaptiveNavigation} from '../apps/extension/core/adaptive';
 import {Store} from '../apps/extension/core/store';
+import {hit} from '../apps/extension/page/assist-reader';
 const u=(p:string)=>new URL(p,'https://resell.store');
 const ref=(label:string,path:string|null,action:PublicRef['action']='activate_readonly_link'):PublicRef=>({
   ref:crypto.randomUUID(),visible:true,role:action==='apply_catalog_filter'?'button':'link',label,path,action});
@@ -36,6 +37,35 @@ test('marketplace captures the wanted item and absolute budget rather than a nav
   assert.equal(publicCatalogPath(u('/discover?sort=price-asc&category=books')),'/discover?category=books&sort=price-asc');
   for(const path of ['/discover?email=a%40b.org','/discover?sort=buy','/discover?q=pen&q=book','/account','/discover?q=password%20secret'])
     assert.equal(publicCatalogPath(u(path)),null);
+});
+test('Wikipedia export discovery is bound to the current article and never adds an automatic route',()=>{
+  const goal='Show me the PDF export for this article.',path='/wiki/Phishing';
+  const dest='/w/index.php?title=Special:DownloadAsPdf&page=Phishing&action=show-download-screen';
+  const u=new URL(dest,'https://en.wikipedia.org');
+  assert(wikiExportGoal(goal));assert(!wikiExportGoal('Send the PDF for this article to someone.'));
+  assert(wikiExportTarget(u,path));assert(!wikiExportTarget(u,'/wiki/Other'));
+  for(const bad of [u.href+'&token=x',u.href+'&page=Phishing',u.href+'#irrelevant',u.href.replace('show-download-screen','download'),
+    u.href.replace('en.wikipedia.org','en.wikipedia.org.example'),u.href.replace('Phishing','Special:Preferences')])
+    assert(!wikiExportTarget(new URL(bad),path));
+  const pdf=ref('Download this page as a PDF file',dest,'identify_article_export');
+  const browse={...pdf,ref:crypto.randomUUID(),action:'activate_readonly_link' as const};
+  assert.deepEqual(pilotCandidates(goal,snapshot('wikipedia',path,[browse,pdf])),[pdf]);
+  assert.deepEqual(pilotCandidates(goal,snapshot('wikipedia','/wiki/Other',[pdf])),[]);
+  assert.equal(publicPath(u,'wikipedia'),null);
+});
+test('a wrapped text link needs an actual uncovered point in one of its visible line boxes',t=>{
+  const globals=globalThis as any;
+  const props=['innerWidth','innerHeight','document','getComputedStyle'];
+  const original=props.map(key=>Object.getOwnPropertyDescriptor(globals,key));
+  t.after(()=>{for(const [i,key] of props.entries()){
+    if(original[i])Object.defineProperty(globals,key,original[i]!);else delete globals[key];
+  }});
+  const target={getClientRects:()=>[{left:90,right:100,top:0,bottom:10},{left:0,right:15,top:10,bottom:20}],
+    contains:(node:unknown)=>node===target};
+  let covered=false;
+  const values=[100,100,{elementFromPoint:(x:number,y:number)=>!covered && ((x>90&&y<10)||(x<15&&y>10))?target:null},()=>({pointerEvents:'auto'})];
+  props.forEach((key,i)=>Object.defineProperty(globals,key,{value:values[i],configurable:true}));
+  assert(hit(target as unknown as HTMLElement));covered=true;assert(!hit(target as unknown as HTMLElement));
 });
 test('only observed scoped candidates can advance a pilot task',()=>{
   const good=ref('Official FAQ','/support/faq.html'),unrelated=ref('Features','/vlc/features.html');

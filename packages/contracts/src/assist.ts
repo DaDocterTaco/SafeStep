@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { bindingSchema, FileProfile } from './review.js';
 import { GenerationLimit } from './explanation.js';
-import {wikiCitationPage,wikiCitationSubject,wikiCurrentSection,publicCatalogPath,storeListing,tenantOrigin} from './site-navigation.js';
+import {wikiCitationPage,wikiCitationSubject,wikiCurrentSection,wikiExportGoal,wikiExportTarget,publicCatalogPath,storeListing,tenantOrigin} from './site-navigation.js';
 export const assistProfiles = z.enum([
   'mdn',
   'python',
@@ -23,6 +23,7 @@ export const actions = z.enum([
   'load_catalog_results',
   'inspect_catalog_filter',
   'handoff_catalog',
+  'identify_article_export',
 ]);
 export type AssistAction = z.infer<typeof actions>;
 export const bounds = {
@@ -164,7 +165,7 @@ export function wikipediaArticlePrefix(goal: string) {
 export function publicSearchQuery(goal: string): string | null {
   const citation=wikiCitationSubject(goal);
   if(citation && safeLabel(citation)) return citation;
-  if(wikiCurrentSection(goal))return null;
+  if(wikiCurrentSection(goal)||wikiExportGoal(goal))return null;
   const positive = goal.split(/\b(?:not|without|except|avoid|never|instead of)\b/i)[0]!;
   const prefix = wikipediaArticlePrefix(positive);
   const topic = prefix ? positive.slice(prefix.topicStart) : positive;
@@ -312,6 +313,12 @@ export function publicPath(u: URL, profile: AssistProfile): string | null {
         : /^\/(?:download\.html)?$/;
     return allowed.test(path) ? path : null;
   }
+  return shareablePathShape(u,profile);
+}
+// Shape validation does not grant navigation authority. Source-aware callers
+// must first establish their actual origin, site role and permitted route.
+export function shareablePathShape(u:URL,profile:AssistProfile) {
+  const path=u.pathname+u.hash;
   if (
     profile === 'experimental' &&
     /(?:^|[\/_-])(?:api|rpc|graphql|webhooks?|actions?|commands?|register|confirm|erase|remove|reset|withdraw|transfer|send|block|follow|unfollow|reserve|bid|vote|download)(?:[\/_.#-]|$)/i.test(
@@ -437,7 +444,10 @@ export function validAssistInput(i: IntentInput | StepInput) {
   if (
     new Set(refs.map((r) => r.ref)).size !== refs.length ||
     refs.some((r) =>
-      r.action==='handoff_catalog'
+      r.action==='identify_article_export'
+        ? !(i.profile==='wikipedia' && wikiExportGoal(i.goal) && r.role==='link' && !r.targetOrigin && !!r.path &&
+          r.path.startsWith('/w/index.php?') && wikiExportTarget(new URL(r.path,i.binding.origin),i.snapshot.path.split('#')[0]!))
+      : r.action==='handoff_catalog'
         ? !(i.profile==='storefront' && r.role==='link' && r.targetOrigin==='https://resell.store' && r.path==='/discover')
       : r.targetOrigin || r.action==='handoff_storefront'
         ? !(i.profile==='catalog' && r.role==='link' && r.action==='handoff_storefront' && !!r.targetOrigin && !!r.path &&
@@ -459,7 +469,7 @@ export function validAssistInput(i: IntentInput | StepInput) {
     return false;
   const paths = [
     i.snapshot.path,
-    ...[...i.snapshot.controls, ...i.snapshot.headings].filter(c=>!c.targetOrigin)
+    ...[...i.snapshot.controls, ...i.snapshot.headings].filter(c=>!c.targetOrigin && c.action!=='identify_article_export')
       .map((c) => c.path)
       .filter((s): s is string => s !== null),
   ];

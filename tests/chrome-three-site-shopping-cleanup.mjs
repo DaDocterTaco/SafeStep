@@ -1,12 +1,13 @@
 // Installed product verification. Public shopping evidence is real; planner and classifier are local fixtures.
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { once } from 'node:events';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
-import { localPilotStep } from '@safestep/contracts';
-import { makeApi } from '../apps/api/dist/app.js';
-import { GeminiService, newPairToken } from '../apps/api/dist/gemini.js';
 import { fingerprint } from '../scripts/stage1.mjs';
 import { nativeSession } from './support/native-stage2.mjs';
 import { view } from './support/chrome-cases.mjs';
@@ -17,6 +18,21 @@ assert.match(build, /^stage-8-[0-9a-f]{12}$/);
 const bundle = resolve('artifacts', build, 'chrome-mv3'),
   { sha256 } = await fingerprint(bundle);
 assert.equal(build, 'stage-8-' + sha256.slice(0, 12));
+const pointer=JSON.parse(await readFile(resolve('docs/evidence',build,'current-reference.json'),'utf8'));
+const reference=JSON.parse(await readFile(pointer.path,'utf8'));
+assert.equal(reference.extensionSHA256,sha256);
+const runtimeRoot=resolve(process.env.SAFESTEP_SHOP_BUILD_RUNTIME??'.');
+assert(runtimeRoot===resolve('.')||runtimeRoot.startsWith(resolve('.test-artifacts')+'\\'));
+for(const group of [reference.api,reference.compiledContracts])for(const [file,digest] of Object.entries(group.files))
+  assert.equal(createHash('sha256').update(await readFile(resolve(runtimeRoot,file))).digest('hex'),digest,'Release inputs changed: '+file);
+if(runtimeRoot!==resolve('.'))for(const [file,digest] of Object.entries(reference.compiledContracts.files)) {
+  const importTarget=file.replace(/^packages\/contracts\//,'node_modules/@safestep/contracts/');
+  assert.equal(createHash('sha256').update(await readFile(resolve(runtimeRoot,importTarget))).digest('hex'),digest,'Isolated API imports a different contract: '+file);
+}
+const moduleAt=path=>import(pathToFileURL(resolve(runtimeRoot,path)).href);
+const {makeApi}=await moduleAt('apps/api/dist/app.js');
+const {GeminiService,newPairToken}=await moduleAt('apps/api/dist/gemini.js');
+const {localPilotStep,automaticThreatSubject}=await moduleAt('packages/contracts/dist/index.js');
 const out = resolve(
   'docs/evidence',
   build,
@@ -46,6 +62,17 @@ async function directTool(s, feature) {
   await btn(s.panel, 'Help').click();
   const tool = await s.panel.waitForSelector('.help-tools button[data-feature="' + feature + '"]');
   await tool.click();
+}
+async function enableThreatFixture(s,source) {
+  const eligible=automaticThreatSubject(source);
+  assert(eligible);
+  await btn(s.panel,'Settings').click();
+  await s.panel.select('[aria-label="Auto protection settings"] select','all');
+  await s.panel.locator('::-p-aria(Allow automatic public URL checks with Google Web Risk[role="checkbox"])').click();
+  await btn(s.panel,'Apply protection settings').click();
+  await promisify(execFile)('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',resolve('tests/support/permission.ps1'),'-BrowserProcessId',String(s.browser.process().pid),'-Choice','Allow'],{windowsHide:true,timeout:16000}).catch(()=>{});
+  await until(async()=>{const v=await state(s);return v.prefs.protection?.automaticUrlConsent===2&&v.protection?.threat?.url===eligible.url&&v.protection.threat.status==='no_match';},'Consented current URL check with its actual coverage');
+  await btn(s.panel,'Close Settings').click();
 }
 async function followCatalogCue(s, task) {
   const el = (await s.page.evaluateHandle(() => {
@@ -129,6 +156,8 @@ async function run(name, width) {
     'resell-guide': 'https://resell.store/',
     mozilla: 'https://addons.mozilla.org/en-US/firefox/addon/ublock-origin/',
     'resell-hard': 'https://nibdrawer.resell.store/lamy-2000-makrolon',
+    'resell-risk': 'https://nibdrawer.resell.store/lamy-2000-makrolon',
+    'offer-risk': 'https://addons.mozilla.org/en-US/firefox/addon/ublock-origin/',
     cleanup: fixture.origin + '/cleanup-lab',
   };
   let s, api;
@@ -191,7 +220,15 @@ async function run(name, width) {
       chat,
       cleanup,
     );
-    api = makeApi(undefined, service);
+    const risk=name==='resell-risk'||name==='offer-risk'?{
+      readiness:()=>({provider:'url_threat',status:'ready',credentialPresent:false}),
+      check:async q=>{
+        (r.threatFixtureRequests??=[]).push({purpose:q.purpose,url:q.url,scope:q.scope});
+        const match=q.purpose==='target';
+        return {...q,reason:null,status:match?'match':'no_match',source:'Google Web Risk Lookup',checkedAt:new Date().toISOString(),expiresAt:match?new Date(Date.now()+240000).toISOString():null,categories:match?['UNWANTED_SOFTWARE']:[]};
+      },
+    }:undefined;
+    api = makeApi(undefined, service,undefined,risk);
     api.listen(4317, '127.0.0.8');
     await once(api, 'listening');
     s = await nativeSession(bundle, width, width === 1440 ? 900 : 768, starts[name], {
@@ -388,6 +425,54 @@ async function run(name, width) {
       assert(!cleanupView.enabled&&cleanupView.hidden===0);
       r.realListingCleanup={eligible:cleanupView.items.length,uncertain:cleanupView.uncertain,limited:cleanupView.limited,applied:0};
       await capture(s,r,'storefront-cleanup');
+    } else if(name==='offer-risk') {
+      r.provider='Controlled exact no-match arrival and selected offer match; not a genuine URL threat finding.';
+      await enableThreatFixture(s,starts[name]);
+      await directTool(s,'shopping_alternatives');
+      const baseline=await until(async()=>{const c=(await state(s)).comparison;return c?.baseline&&c.baseline;},'Mozilla baseline for selected option');
+      await typeField(s,'Comparison goal','Compare similar Firefox ad blockers.');
+      await (await field(s,'Comparison mode')).select('similar_products');
+      await typeField(s,'Public search terms','ad blocker');
+      for(const key of ['product','model','version']){const el=await field(s,key);if(!await el.evaluate(e=>e.checked))await el.click();}
+      for(const el of await s.panel.$$('.comparison-form input[type=checkbox][required]'))await el.click();
+      await btn(s.panel,'Find options').click();
+      const c=await until(async()=>{const c=(await state(s)).comparison;return c?.candidates?.length&&!['searching','checking_candidates','comparing'].includes(c.status)&&c;},'Actual Mozilla candidate from reviewed search',35000);
+      assert(!r.threatFixtureRequests.some(q=>q.purpose==='target'),'Candidates must not be scanned before selection');
+      const target=c.candidates[0].offer,before=(await s.browser.pages()).length,eligible=automaticThreatSubject(target.url,'target');
+      assert.equal(new URL(target.url).origin,'https://addons.mozilla.org');
+      assert(eligible);
+      const card=await s.panel.$('article[data-offer-id="'+target.id+'"] button:not([type])');
+      assert(card && await card.evaluate(e=>e.innerText)==='Open offer');await card.click();
+      const result=await until(async()=>{const p=(await state(s)).protection?.destination;return p?.kind==='offer'&&p.result?.url===eligible.url&&p;},'Selected offer protection result');
+      assert(result.result.status==='match'||(eligible.scope==='root'&&result.result.status==='no_match'&&result.limitedTicket));
+      assert.equal(result.result.scope,eligible.scope);assert.equal(s.page.url(),starts[name]);assert.equal((await s.browser.pages()).length,before);
+      assert(r.threatFixtureRequests.filter(q=>q.purpose==='target').every(q=>q.url===eligible.url));
+      r.offerProof={baseline:baseline.id,candidate:target.id,url:target.url,candidates:c.candidates.length,source:c.searchSource,checkedScope:eligible.scope,checkedUrl:result.result.url,fixtureStatus:result.result.status,newTabs:0};
+      await capture(s,r,'blocked-offer');
+    } else if(name==='resell-risk') {
+      r.provider='Controlled exact no-match arrival, positive target; not Google upstream.';
+      await enableThreatFixture(s,starts[name]);
+      await directTool(s,'product_assessment');
+      const product=await until(async()=>{const d=(await state(s)).shopping?.product?.data;return d?.status==='limited_evidence'&&d;},'Physical product check');
+      assert.equal(product.inspectedUrl,starts[name]);assert.equal(product.records.length,0);
+      await s.panel.waitForFunction(url=>[...document.querySelectorAll('[data-security]')].some(e=>e.textContent.includes('Website URL check')&&e.textContent.includes(url)&&e.textContent.includes('does not establish merchant reliability')),{},starts[name]);
+      await directTool(s,'seller_assessment');
+      const seller=await until(async()=>{const d=(await state(s)).shopping?.seller?.data;return d?.records.length&&d;},'Current exact seller evidence');
+      assert.equal(seller.inspectedUrl,starts[name]);assert.equal(seller.context.seller,'nibdrawer');
+      assert(seller.records.every(x=>x.channel==='seller_received_feedback'&&x.subject===seller.context.seller));
+      assert(!r.threatFixtureRequests.some(q=>q.purpose==='target'),'Evidence display must not scan candidate sources');
+      await capture(s,r,'separate-evidence');
+      const before=(await s.browser.pages()).length;
+      await s.panel.locator('article[aria-label="Seller assessment"] a[data-source-url]').click();
+      const target=await until(async()=>{const p=(await state(s)).protection?.destination;return p?.result?.status==='match'&&p;},'Selected source stopped by controlled threat receipt');
+      assert.equal(target.result.url,seller.source);assert.equal(target.result.purpose,'target');
+      assert.equal((await s.browser.pages()).length,before);assert.equal(s.page.url(),starts[name]);
+      await directTool(s,'page_cleanup');
+      const cv=await until(async()=>{const c=(await state(s)).cleanup;return c?.binding.origin===new URL(starts[name]).origin&&c;},'Source warning remains separate from cleanup preview');
+      const warning=await s.panel.evaluate(()=>[...document.querySelectorAll('[data-security]')].some(e=>e.textContent.includes('possible unwanted software')));
+      assert(warning,'Source warning remains visible outside cleanup');
+      r.separateEvidence={productRecords:product.records.length,sellerRecords:seller.records.length,source:seller.source,attemptedTarget:target.result.url,newTabs:0,hiddenByCleanup:cv.hidden,warning};
+      await capture(s,r,'blocked-source');
     } else if(name==='resell-hard') {
       const goal='Find similar pens. They must have an ultraviolet coating. Exclude broad nibs.';
       await submit(s,goal);
@@ -521,14 +606,14 @@ async function run(name, width) {
     rows.push(r);
     await writeFile(
       join(out, 'results.json'),
-      JSON.stringify({ role: 'builder', build, sha256, bundle, rows }, null, 2) + '\n',
+      JSON.stringify({ role: 'builder', build, sha256, bundle, source:reference.source.sha256, api:reference.api.sha256, contracts:reference.compiledContracts.sha256, rows }, null, 2) + '\n',
     );
     console.log(name, width, r.status, r.error ?? '');
   }
 }
 try {
   const names = (process.argv[2] ?? 'resell,mozilla,cleanup').split(',');
-  assert(names.every((x) => ['resell', 'resell-guide', 'resell-hard', 'mozilla', 'cleanup'].includes(x)));
+  assert(names.every((x) => ['resell', 'resell-guide', 'resell-hard','resell-risk','offer-risk', 'mozilla', 'cleanup'].includes(x)));
   for (const width of [1440, 1366]) for (const name of names) await run(name, width);
 } finally {
   fixture.server.closeAllConnections();

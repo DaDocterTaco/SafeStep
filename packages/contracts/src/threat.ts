@@ -62,7 +62,9 @@ function publicDocument(u: URL) {
       /^[a-z][a-z0-9]*(?:-[a-z0-9]+){1,20}$/.test(segments[0] ?? ''))
   )
     return true;
-  if (mozillaReviewScope(u)) return true;
+  if (mozillaReviewScope(u) ||
+      (u.origin==='https://addons.mozilla.org' && !u.search && !u.hash &&
+        /^\/[a-z]{2}(?:-[A-Za-z]{2})?\/firefox\/addon\/[a-z0-9]+(?:-[a-z0-9]+)*\/$/.test(u.pathname))) return true;
   const families =
     /^(?:about|articles?|blog|catalog|docs|documentation|guides?|help|learn|news|products?|public|reference|resources|support|tutorials?)$/i;
   return (

@@ -264,7 +264,7 @@ export class Protection {
       checkedAt: now,
       status: a.privateRoute ? 'private' : 'local',
       outside: a.privateRoute
-        ? 'Private or restricted address. Outside sources were not queried.'
+        ? 'Merchant reports were not requested for this private or restricted route.'
         : 'Outside reports are off. Only the current address was checked.',
       sources: [],
       details: [],
@@ -273,7 +273,7 @@ export class Protection {
       expiresAt: null,
       threatPage:pageUrl,
       threatHome:homeUrl,
-      threatNotice:a.privateRoute?'Private or restricted address. No threat lookup was made.':
+      threatNotice:!homeUrl?'Private or restricted address. No threat lookup was made.':
         'Known-threat lookup has not been run for this document.',
     };
     // Domain evidence survives public SPA navigation in this document; page

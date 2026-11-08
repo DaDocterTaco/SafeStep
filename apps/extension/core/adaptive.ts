@@ -15,6 +15,7 @@ import {
   wikiCitationPage,
   wikiCitationSubject,
   wikiCurrentSection,
+  wikiExportGoal,
   catalogGoal,
   publisherBrowseGoal,
   localPilotStep,
@@ -95,7 +96,7 @@ export function localSiteGoal(profile:AssistSnapshot['profile'],goal:string){
   return (profile==='catalog' && /\b(?:find|browse|search|show|open|locate|filter|load|see)\b/i.test(goal)) ||
     (profile==='storefront' && returnToCatalog(goal)) ||
     (profile==='publisher' && !!publisherBrowseGoal(goal)) ||
-    (profile==='wikipedia' && !!(wikiCitationSubject(goal)||wikiCurrentSection(goal)||
+    (profile==='wikipedia' && !!(wikiCitationSubject(goal)||wikiCurrentSection(goal)||wikiExportGoal(goal)||
       wikipediaArticlePrefix(goal)));
 }
 // Observed search result article commit and same-document cleanup, see the
@@ -554,7 +555,7 @@ export class AdaptiveNavigation {
         );
       const target = [...snap.headings, ...snap.controls].find((c) => c.ref === d.ref);
       if (!target || target.action !== d.action) throw Error('Unknown target. Inspect again.');
-      if(a.profile==='catalog' || a.profile==='storefront' || wikiCitationSubject(t.goal) || wikiCurrentSection(t.goal) ||
+      if(a.profile==='catalog' || a.profile==='storefront' || wikiCitationSubject(t.goal) || wikiCurrentSection(t.goal) || wikiExportGoal(t.goal) ||
          (a.profile==='publisher' && !a.download && publisherBrowseGoal(t.goal))) {
         const allowed=pilotCandidates(t.goal,snap);
         if(allowed && !allowed.some(c=>c.ref===target.ref))
@@ -619,6 +620,8 @@ export class AdaptiveNavigation {
       a.status = (
         target.action === 'submit_public_search'
           ? 'Search '+(a.profile==='catalog'?'the marketplace':'Wikipedia')+' for “' + a.searchQuery + '” using its public search field.'
+          : target.action==='identify_article_export'
+            ? 'Wikipedia’s PDF export control for this article is outlined. You choose whether to open it.'
           : target.action==='handoff_storefront'
             ? 'Open the outlined listing on '+new URL(target.targetOrigin!).hostname+' yourself. Click SafeStep there to grant access, then check this seller or compare this offer.'
           : target.action==='handoff_catalog'
@@ -631,7 +634,7 @@ export class AdaptiveNavigation {
               (target.path ? ' to ' + target.path : '.')
       ).slice(0, 180);
       t.state = 'showing_step';
-      if(target.action==='handoff_storefront'||target.action==='handoff_catalog'){
+      if(target.action==='handoff_storefront'||target.action==='handoff_catalog'||target.action==='identify_article_export'){
         a.authorized=false;t.mode='guide';
         if(target.action==='handoff_catalog'){
           const trail=this.trails.get(t.tabId);
@@ -656,7 +659,7 @@ export class AdaptiveNavigation {
     }
     if(!url)return;
     const tab=await this.active(s,r);
-    const verdict=await this.destinationPreflight(s,tab,{kind:target.action==='handoff_storefront'?'offer':'navigation',
+    const verdict=await this.destinationPreflight(s,tab,{kind:target.action==='handoff_storefront'?'offer':target.action==='identify_article_export'?'download':'navigation',
       url:url.href,documentId:b.documentId},r.abort.signal);
     await this.confirmSnapshot(s,r);
     if(!verdict.allow)throw Error(verdict.reason??'This destination needs your attention before navigation.');

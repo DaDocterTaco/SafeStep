@@ -273,6 +273,8 @@ export function installAssistBridge() {
               if (!query) throw Error('Confirm the public search query first.');
               submitWikipediaSearch(e, query);
             }
+          } else if(c.action==='identify_article_export'){
+            throw Error('The current article export control is for the user to activate.');
           } else if(c.action==='handoff_storefront'||c.action==='handoff_catalog'){
             throw Error('A different storefront needs a fresh user choice and access.');
           } else if (
