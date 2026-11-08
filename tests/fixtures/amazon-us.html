@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><title>SafeStep Amazon US seller practice</title>
+  <style>
+    body {
+      max-width: 48rem;
+      margin: 2rem auto;
+      padding: 1rem;
+      font: 17px/1.5 system-ui;
+    }
+    label,
+    select,
+    button {
+      font: inherit;
+    }
+    section {
+      padding: 1rem;
+      margin: 1rem 0;
+      border: 1px solid #999;
+    }
+    li {
+      margin: 0.6rem 0;
+    }
+  </style>
+  <body>
+    <header>
+      <strong>SafeStep practice · synthetic Amazon US offers, sellers and feedback</strong>
+    </header>
+    <main>
+      <h1>Compare practice seller evidence</h1>
+      <p>
+        All identities and metrics on this local page are invented fixtures. No Amazon requests are
+        made.
+      </p>
+      <label
+        >Selected offer
+        <select id="offer">
+          <option value="a">Offer A · Example Supply</option>
+          <option value="b">Offer B · Example Supply</option>
+          <option value="c">Different ASIN · Example Supply</option>
+          <option value="unknown">Seller unknown</option>
+        </select></label
+      >
+      <label><input type="checkbox" id="delay" /> Delay local feedback capture</label>
+      <section data-shopping-evidence id="shop-listing"></section>
+      <section data-shopping-evidence id="seller-section"></section>
+      <section data-shopping-evidence id="product-section"></section>
+    </main>
+    <script>
+      const sample = {
+        a: ['SYNTH-A', 'AMZ-A', 'B00TEST001'],
+        b: ['SYNTH-B', 'AMZ-B', 'B00TEST001'],
+        c: ['SYNTH-B', 'AMZ-C', 'B00TEST002'],
+        unknown: ['', 'AMZ-X', 'B00TEST001'],
+      };
+      const offer = document.getElementById('offer'),
+        delay = document.getElementById('delay');
+      function render() {
+        const [seller, id, asin] = sample[offer.value],
+          m = document.getElementById('shop-listing'),
+          s = document.getElementById('seller-section'),
+          p = document.getElementById('product-section');
+        const source = 'https://www.amazon.com/dp/' + asin + '?smid=' + seller,
+          shipper = offer.value === 'a' ? 'Amazon (practice fulfillment)' : 'Practice shipper';
+        Object.assign(m.dataset, {
+          region: 'US',
+          seller,
+          display: 'Example Supply',
+          offer: id,
+          listing: id,
+          asin,
+          catalog: asin,
+          marketplaceAddress: source,
+          shipper,
+          brand: 'Example Manufacturer',
+          title: 'Synthetic desk clock',
+          condition: 'new',
+        });
+        m.textContent =
+          'Simulated Amazon US listing ' +
+          asin +
+          ' · Offer ' +
+          id +
+          ' · Sold by ' +
+          (seller || 'Unknown') +
+          ' (Example Supply) · Ships from ' +
+          shipper +
+          ' · Brand Example Manufacturer.';
+        for (const e of [s, p])
+          Object.assign(e.dataset, {
+            region: 'US',
+            offer: id,
+            asin,
+            seller,
+            scope: e === s ? 'Received as seller' : 'Catalog product reviews',
+            subject: e === s ? seller : asin,
+            delay: delay.checked ? '700' : '0',
+          });
+        const row = (key, subject, channel, state, text) =>
+          '<li data-record data-id="' +
+          key +
+          '" data-channel="' +
+          channel +
+          '" data-subject="' +
+          subject +
+          '" data-state="' +
+          state +
+          '" data-published="2026-10-01"><span data-comment>' +
+          (state === 'struck' ? '<s>' + text + '</s>' : text) +
+          '</span> · ' +
+          channel +
+          ' · ' +
+          state +
+          '</li>';
+        const number = (label, value, unit, period, scale) =>
+          '<p data-metric="' +
+          label +
+          '" data-value="' +
+          value +
+          '" data-unit="' +
+          unit +
+          '" data-period="' +
+          period +
+          '"' +
+          (scale ? ' data-scale="' + scale + '"' : '') +
+          '>' +
+          label +
+          ' ' +
+          (value || 'Unknown') +
+          ' · ' +
+          period +
+          '</p>';
+        s.innerHTML = '<h2>Practice seller service</h2>';
+        if (offer.value === 'a')
+          s.innerHTML +=
+            number('Positive seller feedback', '33', 'percent', 'Last 30 days', 100) +
+            number('Positive seller feedback', '87', 'percent', 'Last 365 days', 100) +
+            number('Total received ratings', '17', 'count', 'Lifetime', null) +
+            number('Received ratings', '', 'count', 'Last 30 days', null) +
+            '<ul>' +
+            row('service1', seller, 'seller_received_feedback', 'current', 'Delivery was late.') +
+            row(
+              'service2',
+              seller,
+              'seller_received_feedback',
+              'struck',
+              'Package never arrived.',
+            ) +
+            row('service3', seller, 'seller_received_feedback', 'removed', 'Refund was refused.') +
+            row(
+              'reply1',
+              seller,
+              'seller_reply',
+              'current',
+              'We promptly refunded this purchase.',
+            ) +
+            row('other1', asin, 'catalog_product_review', 'current', 'The product works well.') +
+            row(
+              'unknown1',
+              seller,
+              'seller_received_feedback',
+              'unknown',
+              'The rating disappeared.',
+            ) +
+            '</ul>';
+        else
+          s.innerHTML +=
+            '<p>No dated buyer feedback or rating counts supplied for this selected seller.</p>';
+        p.innerHTML =
+          '<h2>Practice catalog-only product reviews</h2>' +
+          number('Catalog product rating', '4.9', 'stars', 'All published catalog ratings', 5) +
+          number('Published product ratings', '150', 'count', 'All versions', null) +
+          '<ul>' +
+          row('product1', asin, 'catalog_product_review', 'current', 'The clock is easy to read.') +
+          row(
+            'wrongchannel',
+            seller,
+            'seller_received_feedback',
+            'current',
+            'Feedback about shipping is separate.',
+          ) +
+          '</ul>';
+      }
+      offer.addEventListener('change', render);
+      delay.addEventListener('change', render);
+      render();
+    </script>
+  </body>
+</html>

@@ -5,12 +5,15 @@ import { resolve, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { nativeSession, measure } from './support/native-stage2.mjs';
 import { view } from './support/chrome-cases.mjs';
+import { openArea } from './support/stage7-panel.mjs';
 import { fingerprint } from '../scripts/stage1.mjs';
 const bundle = resolve(process.env.SAFESTEP_BUNDLE ?? 'apps/extension/.output/chrome-mv3'),
   { sha256 } = await fingerprint(bundle);
 const out = resolve('.test-artifacts/stage2', sha256.slice(0, 12));
 await mkdir(out, { recursive: true });
 const chosen = process.env.SAFESTEP_CASES ?? 'wiki,video,edges';
+assert(chosen.split(',').every((group) => ['wiki', 'video', 'edges'].includes(group)), 'unknown Stage 2 test group');
+if (process.env.SAFESTEP_WIDTH) assert(['1440', '1366'].includes(process.env.SAFESTEP_WIDTH), 'unknown Stage 2 desktop size');
 const results = [];
 const setups = {
   wiki: {
@@ -36,7 +39,8 @@ const button = (panel, name) =>
   panel.locator('::-p-aria(' + name + '[role="button"])').setTimeout(5500);
 async function waitUI(panel, selector, contains) {
   await panel.waitForFunction(
-    (sel, text) => document.querySelector(sel)?.textContent.includes(text),
+    (sel, text) => [...document.querySelectorAll(sel)].some((el) =>
+      el.getClientRects().length && el.innerText.includes(text)),
     { timeout: 10000 },
     selector,
     contains,
@@ -117,6 +121,7 @@ async function journey(site, width, height) {
     });
     await s.page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
     const { panel, page } = s;
+    await openArea(panel, 'Guide');
     await panel.focus('#goal');
     await panel.keyboard.type(c.goal);
     await panel.keyboard.press('Enter');
@@ -145,7 +150,18 @@ async function journey(site, width, height) {
         observedPlacement: a.snapshot.guide.placement,
         aligned: true,
       });
-      await el.click();
+      // Screenshotting the native panel may focus that target. Click in the live page
+      // after its menu scripts have loaded, as a user returning to the site would.
+      await page.bringToFront();
+      if (i === 0) await page.waitForFunction(() => document.readyState === 'complete', { timeout: 30000 });
+      if(site==='video'&&i===0){
+        // VideoLAN's desktop hover handler toggles the same menu as a click.
+        // A second activation would close a menu the pointer just opened.
+        await el.hover();
+        const opened=await page.waitForFunction(()=>Array.from(document.querySelectorAll('#main-navbar .dropdown-menu a')).some(a=>a.textContent.trim()==='Download'&&a.checkVisibility({checkVisibilityCSS:true})&&a.getBoundingClientRect().height>0),{timeout:900}).then(()=>true,()=>false);
+        if(!opened)await el.click();
+        r.steps[i].activation=opened?'pointer opened menu on hover':'clicked closed menu';
+      }else await el.click();
     }
     await waitUI(panel, '[data-testid=task-state]', 'Completed');
     const done = (await view(panel)).v;
@@ -218,14 +234,15 @@ const record = { role: 'builder', sha256, bundle, checkedAt: new Date().toISOStr
 await writeFile(
   join(
     out,
-    chosen === 'wiki,video,edges' && !process.env.SAFESTEP_WIDTH
+    chosen === 'wiki,video,edges' && !process.env.SAFESTEP_WIDTH && !process.env.SAFESTEP_EDGE
       ? 'stage2.json'
       : 'stage2-' +
           chosen.replaceAll(',', '-') +
+          (chosen.includes('edges') && process.env.SAFESTEP_EDGE ? '-' + process.env.SAFESTEP_EDGE : '') +
           '-' +
           (process.env.SAFESTEP_WIDTH ?? 'both') +
           '.json',
   ),
   JSON.stringify(record, null, 2) + '\n',
 );
-if (results.some((r) => r.status !== 'pass')) process.exitCode = 1;
+if (!results.length || results.some((r) => r.status !== 'pass')) process.exitCode = 1;

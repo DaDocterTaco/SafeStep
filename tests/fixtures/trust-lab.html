@@ -1,0 +1,15 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>SafeStep · Website check lab</title><style>body{font:17px/1.5 system-ui;max-width:720px;margin:28px auto}button{padding:6px}aside{border:2px solid #555;padding:16px}</style>
+<h1>Website check lab</h1><p>Labelled harmless fixtures. Use SafeStep’s Check this website to inspect the visible example.</p>
+<button id="neutral">Neutral page</button> <button id="warning">Warning dialog</button> <button id="large">Large page</button>
+<section id="sample">Educational article: a scam may say your device is infected and ask you to call support.</section>
+<label>Dummy private input <input type="password" value="PRIVATE_STAGE3_FIELD"></label><div contenteditable>PRIVATE_STAGE3_EDITABLE</div><span hidden>PRIVATE_STAGE3_HIDDEN</span>
+<iframe title="Skipped fixture frame" srcdoc="<span>PRIVATE_STAGE3_FRAME</span>"></iframe>
+<p>Simulated, local source cases: <a href="?source=match">business and threat match</a>, <a href="?source=zero">zero reviews</a>, <a href="?source=stale">expired</a>, <a href="?source=wrong">wrong business</a>, <a href="?source=no-coverage">no coverage</a>.</p>
+<script>
+const sample=document.querySelector('#sample');
+neutral.onclick=()=>sample.textContent='Educational article: a scam may say your device is infected and ask you to call support.';
+warning.onclick=()=>sample.innerHTML='<aside role="alertdialog">Your device is infected. Call support immediately and download now.</aside><a href="https://example.org/">https://www.videolan.org/</a><b itemprop="aggregateRating">Our own five-star claim (fixture)</b>';
+large.onclick=()=>{sample.replaceChildren();for(let i=0;i<1800;i++)sample.append(document.createElement('span'))};
+if(location.search.includes('warning'))warning.click();
+document.addEventListener('click',e=>{if(e.target.closest('#sample a'))e.preventDefault()});
+</script></html>

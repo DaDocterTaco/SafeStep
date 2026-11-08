@@ -30,7 +30,7 @@ export class Store {
     let s = this.tabs.get(tabId);
     if (s) return s;
     if (this.tabs.size >= 64) {
-      const idle = [...this.tabs.values()].find((r) => !live(r.cp.task));
+      const idle = [...this.tabs.values()].find((r) => !live(r.cp.task) && !r.cp.cleanup && !r.cp.compare && !r.abortChat);
       if (!idle) throw new Fault('blocked_by_policy');
       void this.drop(idle.cp.tabId);
     }
@@ -48,6 +48,10 @@ export class Store {
     return this.write(() => chrome.storage.session.set({ [prefix + cp.tabId]: cp }));
   }
   drop(id: number) {
+    this.tabs.get(id)?.abortChat?.();
+    this.tabs.get(id)?.invalidateComparison?.();
+    this.tabs.get(id)?.abortAssist?.();
+    this.tabs.get(id)?.cancelShopping?.();
     this.tabs.delete(id);
     return this.write(() => chrome.storage.session.remove(prefix + id));
   }
@@ -72,12 +76,42 @@ export class Store {
         ? s.snapshot
         : null;
     return {
+      ...(s.cp.chat ? {chat:s.cp.chat} : {}),
       tabId: t.id!,
       epoch: s.cp.epoch,
       origin: site,
       access,
       issue: s.cp.issue,
       snapshot,
+      ...(s.protection && s.protection.origin===site ? {protection:s.protection} : {}),
+      ...(s.comparison &&
+      s.cp.compare?.origin === site &&
+      (access === 'site' || access === 'temporary')
+        ? { comparison: s.comparison }
+        : {}),
+      ...(s.cleanup &&
+      (access === 'site' || access === 'temporary') &&
+      s.cleanup.binding.origin === site
+        ? { cleanup: s.cleanup }
+        : {}),
+      ...(s.shopping && (access === 'site' || access === 'temporary')
+        ? {
+            shopping: Object.fromEntries(
+              Object.entries(s.shopping).filter(
+                ([, v]) =>
+                  v.data.binding.origin === site &&
+                  v.data.binding.epoch === s.cp.epoch &&
+                  Date.parse(v.data.captured) + 300000 > Date.now(),
+              ),
+            ),
+          }
+        : {}),
+      ...(s.review &&
+      s.review.binding.origin === site &&
+      (access === 'temporary' || access === 'site')
+        ? { review: s.review }
+        : {}),
+      ...(s.reviewStale ? { reviewStale: true } : {}),
       ...(snapshot && s.cue ? { cue: s.cue } : {}),
       task: s.cp.task,
       prefs: this.prefs,

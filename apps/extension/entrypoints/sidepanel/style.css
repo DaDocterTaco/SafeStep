@@ -213,6 +213,10 @@ a {
 .waiting {
   padding: 15px;
 }
+.guide-heading:focus-visible {
+  outline: 3px solid #08775c;
+  outline-offset: 2px;
+}
 .task-picker {
   margin: 7px 0;
 }
@@ -242,10 +246,152 @@ a {
   font-family: ui-monospace, monospace;
   overflow-wrap: anywhere;
 }
+.shopping-card dl {
+  margin: 0.5rem 0;
+}
+.shopping-card dl div {
+  display: grid;
+  grid-template-columns: minmax(70px, 1fr) 1.5fr;
+  gap: 0.4rem;
+  padding: 0.12rem 0;
+}
+.shopping-card dt {
+  font-weight: 600;
+}
+.shopping-card dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.shopping-card small {
+  display: block;
+}
+.shopping-card a {
+  display: inline-block;
+  margin: 0.3rem 0.5rem 0.3rem 0;
+}
+.shopping-card a:focus-visible {
+  outline: 3px solid #08775c;
+  outline-offset: 2px;
+}
 .flag,
 .location {
   background: #fff3d9;
   padding: 5px;
+}
+.comparison {
+  min-width: 0;
+}
+.comparison h4 {
+  margin: 10px 0 2px;
+}
+.comparison form > label,
+.comparison .requirement > label:not(.check),
+.comparison fieldset > label:not(.check) {
+  display: block;
+  margin-top: 8px;
+}
+.comparison input:not([type='checkbox']) {
+  width: 100%;
+  padding: 6px;
+  border: 1px solid #adbeb3;
+  border-radius: 6px;
+  font: inherit;
+}
+.comparison fieldset {
+  min-width: 0;
+  border: 1px solid #cfdad4;
+  border-radius: 7px;
+  margin: 9px 0;
+  padding: 8px;
+}
+.comparison .requirement + .requirement {
+  border-top: 1px solid #cfdad4;
+  margin-top: 8px;
+  padding-top: 8px;
+}
+.comparison .compare-card {
+  border-inline-start: 3px solid #99bfac;
+  padding: 4px 0 4px 8px;
+  margin: 10px 0;
+}
+.comparison .original {
+  border-color: #14624d;
+}
+.comparison .compare-fields {
+  display: grid;
+  grid-template-columns: minmax(65px, 0.85fr) minmax(0, 1.35fr);
+  column-gap: 5px;
+  row-gap: 4px;
+}
+.compare-fields > div {
+  display: contents;
+}
+.compare-fields dt {
+  font-weight: 600;
+}
+.compare-fields dd {
+  margin: 0;
+}
+.comparison details {
+  padding: 6px;
+  margin: 7px 0;
+}
+.comparison form > button,
+.comparison > button {
+  margin: 4px 3px 4px 0;
+}
+.compare-priorities ol {
+  margin: 4px 0;
+}
+.compare-priorities li {
+  padding: 3px 0;
+}
+.compare-priorities button {
+  padding: 2px 6px;
+}
+.comparison-scroll {
+  max-width: 100%;
+  overflow: auto;
+  margin: 8px 0;
+  max-height: 65vh;
+  border: 1px solid #cfdad4;
+}
+.comparison-scroll table {
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: left;
+  font: inherit;
+}
+.comparison-scroll caption {
+  text-align: left;
+  padding: 6px;
+}
+.comparison-scroll th,
+.comparison-scroll td {
+  min-width: 7em;
+  padding: 6px;
+  border-right: 1px solid #d4ded8;
+  border-bottom: 1px solid #d4ded8;
+  vertical-align: top;
+}
+.comparison-scroll thead th {
+  background: #edf4ef;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.comparison-scroll tbody th {
+  background: #f6f8f5;
+  min-width: 5.5em;
+}
+.comparison-scroll td:nth-child(2),
+.comparison-scroll th:nth-child(2) {
+  background: #edf4ef;
+}
+.comparison-scroll:focus-visible,
+.comparison a:focus-visible {
+  outline: 3px solid #08775c;
+  outline-offset: 2px;
 }
 select {
   display: block;
@@ -256,3 +402,127 @@ select {
 select:focus-visible {
   outline: 3px solid #08775c;
 }
+.mast {padding:12px 16px;gap:10px}
+.mast .mark {width:30px;height:34px;border-radius:9px 9px 13px 13px;font-size:21px}
+.mast h1 {font-size:24px}
+:root {font-size:16px}
+.areas {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;background:#e7eee7;padding:3px;border-radius:11px}
+.areas [role=tab] {min-width:0;min-height:43px;border:0;border-radius:8px;background:transparent;padding:5px 2px;line-height:1.15;font-size:.87em}
+.areas [aria-selected=true] {background:#16493e;color:white;font-weight:700}
+.areas [aria-selected=true]:hover {background:#16493e}
+.area-panel {min-width:0;display:grid;gap:11px}
+.area-panel[hidden] {display:none}
+.current-host {font-size:1.12em;margin-bottom:0}
+.page-title {margin-bottom:0;font-size:.92em}
+button {min-height:40px}
+.approval {background:#f2f6f1;border:1px solid #c7d7cb;border-radius:8px;padding:9px;flex-basis:100%}
+.approval button {margin-right:5px}
+.goal-summary {font-weight:600}
+.active-task {border-left:4px solid #508775}
+.restore {justify-self:start}
+.chat-shell {
+  --line: #d3ded6;
+  --ink: #173b32;
+  display:flex;
+  flex-direction:column;
+  height:100vh;
+  height:100dvh;
+  width:100%;
+  overflow:hidden;
+  min-width:0;
+  gap:0;
+  padding:0;
+  background:#f4f6ef;
+  color:var(--ink);
+}
+.chat-shell button,.chat-shell textarea,.chat-shell select {font:inherit}
+.chat-shell button {white-space:normal;overflow-wrap:anywhere}
+.chat-shell :is(button,a,textarea,summary,[tabindex]):focus-visible {
+  outline:3px solid #127e62;
+  outline-offset:2px;
+}
+.chat-header {
+  flex:none;
+  padding:12px 15px 10px;
+  background:#173e34;
+  color:#fff;
+}
+.chat-top,.site-line,.chat-top nav,.secondary-heading,.action-dock,.suggestions,.card-buttons {display:flex;align-items:center;flex-wrap:wrap;gap:7px}
+.chat-top h1 {margin:0;font:600 1.48em/1.05 Georgia,serif;letter-spacing:-.03em}
+.brand-mark {
+  display:grid;place-items:center;width:26px;height:29px;
+  border:1px solid #a8d4b4;border-radius:7px 7px 12px 12px;color:#e4f5d2;font:600 19px Georgia,serif;
+}
+.chat-top nav {margin-inline-start:auto;gap:2px}
+.chat-top nav button {
+  background:transparent;border:1px solid transparent;color:#eaf5e6;
+  min-height:40px;padding:3px 7px;font-size:.9em;
+}
+.chat-top nav button:hover,.chat-top nav button[aria-expanded=true] {background:#335b4d}
+.chat-header :is(button,a):focus-visible {outline-color:#d4eeb3}
+.site-line {gap:3px 10px;margin-top:7px;line-height:1.25;align-items:baseline}
+.site-line strong {font-size:.91em;overflow-wrap:anywhere}
+.site-status {font-size:.875em;color:#e0ecdd;display:inline-flex;align-items:center;gap:5px}
+.site-status i {width:6px;height:6px;border-radius:100%;background:#cfdfc9;flex:none}
+.site-status.caution {color:#ffe1a5}.site-status.caution i {background:#ffcb75}
+.site-warning {
+  flex:none;max-height:28dvh;overflow:auto;border:0;border-bottom:1px solid #d6ab74;border-radius:0;
+  padding:8px 15px;background:#fff2d8;color:#593409;
+}
+.site-warning p {color:#593b1b;margin:3px 0}.site-warning details {padding:0;background:none;border:0}
+.site-warning button {margin-top:4px;border-color:#a1845e;font-size:.85em;min-height:34px}
+.transcript-frame {flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+.transcript-frame[hidden] {display:none}
+.transcript {flex:1 1 0;min-height:0;width:100%;overflow:auto;overflow-anchor:none;padding:14px;scroll-padding:12px}
+.chat-welcome {padding:16px 0 7px}
+.chat-welcome h2 {font:600 1.52em/1.16 Georgia,serif;letter-spacing:-.025em; margin:0 0 7px}
+.chat-welcome p {font-size:.96em;line-height:1.45;margin:0}
+.suggestions {gap:6px;margin:8px 0 15px;align-items:stretch}
+.suggestions button,.help-tools button {border-color:#a8c5af;background:#fbfdf8;color:#224b38}
+.suggestions button {border-radius:15px;padding:6px 11px;font-size:.95em;min-height:42px}
+.turn {margin:0 0 14px;min-width:0;overflow-wrap:anywhere}
+.turn-speaker {display:block;font-size:.79em;letter-spacing:.015em;color:#466253}
+.turn-text {white-space:pre-wrap;color:#254135;margin:4px 0;line-height:1.43}
+.turn.user {background:#e1eddb;border:1px solid #cfdfc8;border-radius:13px 13px 4px 13px;padding:9px 12px;margin-inline-start:22px}
+.turn.assistant {background:#fff;border:1px solid var(--line);border-radius:4px 13px 13px 13px;padding:10px 12px}
+.turn.user .turn-speaker {color:#3e5a3e}
+.turn :is(section,article,details) {min-width:0}
+.turn section {border:0;border-radius:0;padding:8px 0 0;margin-top:7px;border-top:1px solid #e1e8de}
+.turn .review {margin:2px 0;border:0;padding:4px 0}
+.turn details {padding:6px 8px;background:#f8faf5}
+.turn .card-buttons {margin-top:7px}
+.turn .edit-request {min-height:32px;border:0;background:transparent;text-decoration:underline;padding:0;margin-top:5px;font-size:.84em}
+.card-facts {margin:7px 0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 8px;font-size:.86em}
+.card-facts dt {font-weight:650}.card-facts dd {margin:0}
+.page-divider {font-size:.82em;overflow-wrap:anywhere;border-top:1px solid #c9d6ca;padding-top:9px;color:#45664f}
+.history-label {font-size:.78em;color:#52605b}
+.jump-latest {flex:none;align-self:flex-end;max-width:calc(100% - 24px);margin:4px 12px;font-size:.8em;border-radius:12px;box-shadow:0 2px 6px #173b3222}
+.action-dock {flex:none;border:0;border-top:1px solid var(--line);border-radius:0;background:#e9efe5;padding:5px 12px;gap:5px}
+.action-dock button {min-height:36px;padding:4px 8px;font-weight:600;font-size:.88em}
+.action-dock .stop {color:#722918;border-color:#ba8e7e}
+.composer-wrap {flex:none;padding:9px 13px 11px;background:#fff;border-top:1px solid var(--line);max-height:45dvh;overflow:auto}
+.composer-wrap label {display:block;margin:0 0 5px;font-weight:650;font-size:.95em}
+.composer-field {display:flex;align-items:flex-end;gap:7px;border:1px solid #99ad9f;border-radius:10px;padding:5px}
+.composer-field:focus-within {border-color:#16734f;box-shadow:0 0 0 1px #16734f}
+.composer-field textarea {display:block;flex:1 1 0%;width:auto;min-width:0;height:3.1em;resize:none;border:0;background:transparent;line-height:1.38;padding:3px 5px;color:#21392c}
+.composer-field textarea:focus-visible {outline:none}
+.composer-field .send {flex:0 0 auto;width:auto;min-width:3.6em;min-height:40px;padding:4px 11px}
+.composer-notice,.composer-wrap .notice,.input-error {margin:2px 0 5px;font-size:.82em}
+.input-error {color:#802b18}
+.secondary {flex:1 1 auto;overflow:auto;min-height:0;padding:12px 15px;background:white}
+.secondary-heading {justify-content:space-between;padding-bottom:7px;margin-bottom:8px;border-bottom:1px solid var(--line)}
+.secondary-heading h2 {margin:0;font-size:1.22em}
+.secondary section,.secondary details {margin-bottom:7px;padding:9px 11px}
+.help-tools {list-style:none;padding:0;margin:0}
+.help-tools li {padding:8px 0;border-bottom:1px solid var(--line)}
+.help-tools small {margin-top:3px}
+.comparison-scroll {max-height:38vh}
+/* A long product title can occupy the whole table viewport at native panel
+   widths. Scroll column headers away while keeping each row's label visible. */
+@media (max-width: 540px) {
+  .comparison-scroll thead th {position:static}
+  .comparison-scroll tbody th {position:sticky;inset-inline-start:0;z-index:1}
+}
+.chat-shell.large .composer-wrap {padding-block:7px}
+@media(max-width:295px){.chat-header {padding:8px}.chat-top {gap:4px}.chat-top nav button {padding-inline:3px}.transcript {padding:10px}.action-dock {padding-inline:8px}.composer-wrap {padding-inline:8px}}
+.sr-only:not(:focus) {position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}

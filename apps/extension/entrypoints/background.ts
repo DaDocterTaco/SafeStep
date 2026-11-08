@@ -13,6 +13,41 @@ export default defineBackground(() => {
     safe(coordinator.invoked(t));
   });
   chrome.runtime.onMessage.addListener((raw, sender, send) => {
+    if(raw?.channel==='protection-page'){
+      safe(coordinator.ready.then(()=>coordinator.protection.page(raw,sender)));return;
+    }
+    if (raw?.channel === 'compare-page-change' && typeof raw.id === 'string') {
+      safe(coordinator.ready.then(() => coordinator.comparisons.pageChanged(raw.id, sender)));
+      return;
+    }
+    if (raw?.channel === 'assist-notice') {
+      safe(coordinator.ready.then(() => coordinator.adaptive.notice(raw, sender)));
+      return;
+    }
+    if (raw?.channel === 'clean-notice') {
+      safe(
+        coordinator.ready.then(async () => {
+          const s = await coordinator.cleanup.changed(raw, sender);
+          if (s?.cp.task?.adaptive)
+            await coordinator.adaptive.pause(s, 'Cleanup changed this page. Inspect again.');
+        }),
+      );
+      return;
+    }
+    if (raw?.channel === 'shop-reserve') {
+      void coordinator.ready
+        .then(() => coordinator.shopping.reserve(raw, sender))
+        .then(send, () => send(false));
+      return true;
+    }
+    if (raw?.channel === 'shop-change') {
+      safe(coordinator.ready.then(() => coordinator.shopping.changed(raw, sender)));
+      return;
+    }
+    if (raw?.channel === 'review-change') {
+      safe(coordinator.ready.then(() => coordinator.reviews.changed(raw, sender)));
+      return;
+    }
     if (raw?.channel === 'changed') {
       safe(coordinator.changed(raw, sender));
       return;
@@ -39,11 +74,77 @@ export default defineBackground(() => {
     );
     return true;
   });
-  chrome.tabs.onActivated.addListener((a) => safe(coordinator.activation(a)));
-  chrome.tabs.onUpdated.addListener((id, ch, t) => safe(coordinator.navigation(id, ch, t)));
-  chrome.tabs.onRemoved.addListener((id) =>
-    safe(coordinator.ready.then(() => coordinator.store.drop(id))),
+  chrome.tabs.onActivated.addListener((a) => {
+    safe(coordinator.activation(a));
+    safe(coordinator.ready.then(()=>coordinator.protection.activated(a.tabId)));
+  });
+  chrome.windows.onFocusChanged.addListener((id) =>
+    safe(
+      coordinator.ready.then(async () => {
+        for(const s of coordinator.store.tabs.values())if((s.abortChat || s.cp.chat?.activeTurnId)&&s.windowId!==id)
+          await coordinator.chat.changed(s);
+        for (const s of coordinator.store.tabs.values())
+          if (
+            s.comparison &&
+            s.windowId !== id &&
+            !['stale', 'paused', 'cancelled'].includes(s.comparison.status)
+          )
+            coordinator.comparisons.invalidate(
+              s,
+              'Window changed. Refresh on the owning product tab.',
+            );
+        for (const s of coordinator.store.tabs.values())
+          if (s.abortAssist && s.windowId !== id)
+            await coordinator.adaptive.pause(
+              s,
+              'The active window changed. Resume from the original tab.',
+            );
+      }),
+    ),
   );
+  chrome.tabs.onUpdated.addListener((id, ch, t) => {
+    safe(coordinator.ready.then(()=>coordinator.protection.navigation(id,ch,t)));
+    safe(coordinator.navigation(id,ch,t));
+  });
+  chrome.tabs.onRemoved.addListener((id) =>
+    safe(
+      coordinator.ready.then(() => {
+        safe(coordinator.protection.drop(id));
+        coordinator.shopping.clearHistory(id);
+        const s = coordinator.store.tabs.get(id);
+        if (s) coordinator.comparisons.forget(s);
+        return coordinator.store.drop(id);
+      }),
+    ),
+  );
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if(area==='session'&&'local-ai-session' in changes)
+      safe(coordinator.ready.then(async()=>{
+        for(const s of coordinator.store.tabs.values())if(s.abortChat)await coordinator.chat.changed(s);
+        await coordinator.protection.pairingChanged();
+      }));
+    if (
+      area === 'session' &&
+      'local-ai-session' in changes &&
+      !changes['local-ai-session']?.newValue
+    )
+      safe(
+        coordinator.ready.then(async () => {
+          coordinator.shopping.clearHistory();
+          for (const s of coordinator.store.tabs.values())
+            if (s.cp.task?.adaptive)
+              await coordinator.adaptive.pause(
+                s,
+                'AI connection changed. Pair again before continuing.',
+              );
+          for (const s of coordinator.store.tabs.values())
+            if (s.cancelShopping) {
+              coordinator.shopping.clear(s);
+              await coordinator.store.save(s);
+            }
+        }),
+      );
+  });
   chrome.permissions.onRemoved.addListener((p) => {
     if (p.origins?.length) safe(coordinator.ready.then(() => coordinator.removeSites(p.origins!)));
   });

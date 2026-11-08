@@ -1,6 +1,5 @@
 {
   "title": "SafeStep Stage 1 foundation plan",
-  "record_scope": "Public excerpt of the shared foundation plan used by the feature registry test.",
   "feature_connections": [
     {
       "rank": 1,
@@ -94,5 +93,6 @@
       ],
       "future_delivery": "Comparable observed offers using seller and product evidence"
     }
-  ]
+  ],
+  "record_scope": "Public planning excerpt. Requirements describe intended scope; build verification is recorded separately."
 }

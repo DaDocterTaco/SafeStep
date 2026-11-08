@@ -1,0 +1,26 @@
+{
+  "title": "Three different public websites as SafeStep's first broad-coverage benchmark",
+  "stage": 8,
+  "revision": "three-site-public-coverage-1",
+  "sites": [
+    {
+      "id": "wiki",
+      "name": "Wikipedia",
+      "type": "Encyclopedia / information",
+      "start_url": "https://en.wikipedia.org/wiki/Main_Page"
+    },
+    {
+      "id": "videolan",
+      "name": "VideoLAN / VLC",
+      "type": "Software publisher / downloads",
+      "start_url": "https://www.videolan.org/"
+    },
+    {
+      "id": "resell",
+      "name": "Resell.store",
+      "type": "Shopping marketplace / storefronts",
+      "start_url": "https://resell.store/"
+    }
+  ],
+  "record_scope": "Public planning excerpt. Requirements describe intended scope; build verification is recorded separately."
+}

@@ -9,29 +9,35 @@ export async function nativeSession(
   width,
   height,
   start,
-  { prepare, attachWorker = false } = {},
+  { prepare, attachWorker = false, apiHost = process.env.SAFESTEP_TEST_API_HOST, install, userDataDir } = {},
 ) {
+  if (apiHost && !/^127\.0\.0\.[2-9]$/.test(apiHost)) throw Error('Test API must use isolated loopback.');
   const browser = await puppeteer.launch({
+    ...(userDataDir ? {userDataDir} : {}),
     executablePath:
       process.env.CHROME_PATH ??
       (process.platform === 'win32'
         ? 'C:/Program Files/Google/Chrome/Application/chrome.exe'
         : '/usr/bin/google-chrome'),
     pipe: true,
+    env: Object.fromEntries(Object.entries(process.env).filter(([k])=>!/(?:API_KEY|TOKEN|SECRET|COOKIE|PASSWORD)/i.test(k))),
     headless: false,
     enableExtensions: true,
     defaultViewport: null,
     targetFilter: (t) => attachWorker || t.type() !== 'service_worker',
     args: [
       '--enable-unsafe-extension-debugging',
+      ...(apiHost ? ['--host-resolver-rules=MAP 127.0.0.1:4317 '+apiHost+':4317'] : []),
       '--disable-background-networking',
       '--force-device-scale-factor=1',
-      '--window-position=-1800,40',
+      install ? '--window-position=30,40' : '--window-position=-1800,40',
     ],
   });
   try {
     const root = await browser.target().createCDPSession();
-    const { id } = await root.send('Extensions.loadUnpacked', { path: resolve(bundle) });
+    const { id } = install
+      ? await install(browser, root, resolve(bundle))
+      : await root.send('Extensions.loadUnpacked', { path: resolve(bundle) });
     const page = await browser.newPage();
     if (prepare) await prepare(page);
     await page.goto(start, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -69,7 +75,7 @@ export async function nativeSession(
         { timeout: 10000 },
       )
     ).asPage();
-    await panel.waitForSelector('#goal');
+    await panel.waitForSelector('#goal, textarea[aria-label="What would you like help with?"], textarea#chat-composer');
     await page.waitForFunction((w) => innerWidth < w, { timeout: 3500 }, width).catch(() => {});
     const contexts = await panel.evaluate(() =>
       chrome.runtime.getContexts({ contextTypes: ['SIDE_PANEL'] }),

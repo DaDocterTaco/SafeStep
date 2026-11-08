@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { nativeSession } from './native-stage2.mjs';
+import { openArea, openDetails } from './stage7-panel.mjs';
 import { view } from './chrome-cases.mjs';
 import { startFixture } from '../fixtures/serve.mjs';
 const url = 'https://en.wikipedia.org/wiki/Phishing',
@@ -400,8 +401,10 @@ export async function edgeCases(h) {
     const { panel, page } = s;
     const seen = [];
     page.on('request', (q) => seen.push(new URL(q.url()).hostname));
-    await panel.locator('summary::-p-text(Check page and link addresses)').click();
-    await panel.select('details select', 'videolan_windows_page');
+    await openArea(panel, 'Safety checks');
+    const addresses = await openDetails(panel, 'Check page and link addresses');
+    const profileSelector = await addresses.waitForSelector('select');
+    await profileSelector.select('videolan_windows_page');
     await button(panel, 'Inspect addresses').click();
     await waitUI(panel, '[aria-label="Current page address"]', 'localhost');
     const v = (await view(panel)).v,
@@ -411,7 +414,8 @@ export async function edgeCases(h) {
     const select = async (label, host) => {
       const c = by[label];
       assert(c, label);
-      const list = await panel.$$('details select');
+      const list = await addresses.$$('select');
+      assert.equal(list.length, 2, 'the address checker has a profile and a link selector');
       await list[1].select(c.ref);
       await waitUI(panel, '[aria-label="Selected destination"]', host ?? 'Destination unknown');
       return c.address;
@@ -458,35 +462,49 @@ export async function edgeCases(h) {
     r.checks.push(
       'U02–U08 actual panel selection, parsed local link metadata, private data excluded, zero destination fetches',
     );
-    await panel.locator('summary::-p-text(Product features)').click();
-    const rows = await panel.$$eval('ol li', (els) => els.map((e) => e.textContent));
+    await openArea(panel, 'Settings');
+    const features = await openDetails(panel, 'Product features');
+    const rows = await features.$$eval('ol > li', (els) => els.map((el) => el.textContent));
     assert.equal(rows.length, 9);
-    assert.equal(rows.filter((r) => r.includes('Available in Stage 2')).length, 2);
-    r.checks.push('R02 all nine registry entries, only two marked available');
+    if (await panel.$('[role=tablist]')) {
+      assert.deepEqual(rows.map((row) => row.trim().replace(/\s+/g, ' ')), [
+        'Visual task assistant Guide',
+        'Website address verification Safety checks',
+        'Website trust popup Safety checks',
+        'Download button protection Safety checks',
+        'Seller reputation checks Shopping',
+        'Product review checks Shopping',
+        'Automatic task navigation Guide',
+        'Hide distracting ads and popups Guide',
+        'Compare better products and sellers Shopping',
+      ]);
+      r.checks.push('R02 all nine named features are listed in priority order with their current panel areas');
+    } else {
+      assert.equal(rows.filter((row) => row.includes('Available in Stage 2')).length, 2);
+      r.checks.push('R02 all nine registry entries, two labelled as Stage 2 features');
+    }
   }
   const selection = process.env.SAFESTEP_EDGE ?? 'all';
+  assert(['all', 'idle', 'variants', 'late', 'address'].includes(selection), 'unknown Stage 2 edge case: ' + selection);
+  const widths = [[1440, 900], [1366, 768]];
+  const selectedSizes = (defaults) => process.env.SAFESTEP_WIDTH
+    ? widths.filter(([width]) => width === Number(process.env.SAFESTEP_WIDTH))
+    : defaults;
   if (selection === 'all' || selection === 'idle') {
-    records.push(
-      ...(await Promise.all(
-        [
-          [1440, 900],
-          [1366, 768],
-        ].map(([w, h]) => run('guide idle and layout', w, h, idle)),
-      )),
-    );
+    for (const [w, h] of selectedSizes(widths)) records.push(await run('guide idle and layout', w, h, idle));
   }
   if (selection === 'all' || selection === 'variants')
-    records.push(await run('guide variations', 1440, 900, variants));
+    for (const [w, h] of selectedSizes([widths[0]])) records.push(await run('guide variations', w, h, variants));
   if (selection === 'all' || selection === 'late')
-    records.push(await run('late replies', 1366, 768, late, { attachWorker: true }));
+    for (const [w, h] of selectedSizes([widths[1]])) records.push(await run('late replies', w, h, late, { attachWorker: true }));
   if (selection === 'all' || selection === 'address') {
     const server = await startFixture(0);
     try {
-      records.push(
-        await run('address inspection', 1366, 768, addresses, {
+      for (const [w, h] of selectedSizes([widths[1]])) {
+        records.push(await run('address inspection', w, h, addresses, {
           start: server.origin + '/addresses',
-        }),
-      );
+        }));
+      }
     } finally {
       server.server.close();
     }

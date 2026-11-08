@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { AddressObservation, PanelView, Placement, WorkflowId } from '@safestep/contracts';
 import { explainAddress, flagText } from '../sites/address-copy';
-import { resolveGoal, workflows, workflowIds } from '../sites/profiles';
+import { needsCitationChoice, resolveGoal, workflows, workflowIds } from '../sites/profiles';
+import { publisherChoice } from '../sites/publisher-goal';
+import { products } from '../sites/downloads';
+import type { FileProfile } from '@safestep/contracts';
 import type { usePanel } from './usePanel';
 type Send = ReturnType<typeof usePanel>['command'];
 export function AddressCard({ address: a, title }: { address: AddressObservation; title: string }) {
@@ -24,7 +27,15 @@ export function AddressCard({ address: a, title }: { address: AddressObservation
     </div>
   );
 }
-export function Reveal({ position, show }: { position: Placement; show: () => void }) {
+export function Reveal({
+  position,
+  show,
+  keyboardFocus,
+}: {
+  position: Placement;
+  show: () => void;
+  keyboardFocus?: () => void;
+}) {
   if (position === 'visible') return null;
   return (
     <div className="location">
@@ -35,7 +46,13 @@ export function Reveal({ position, show }: { position: Placement; show: () => vo
             ? 'The outlined control is above the visible page.'
             : 'The outlined control is outside the visible area.'}
       </p>
-      <button type="button" onClick={show}>
+      <button
+        type="button"
+        onClick={(e) => {
+          if (e.detail === 0 && e.currentTarget === document.activeElement) keyboardFocus?.();
+          show();
+        }}
+      >
         Show me
       </button>
     </div>
@@ -54,18 +71,60 @@ export function Guidance({
 }) {
   const [feedback, setFeedback] = useState(''),
     [choices, choose] = useState(false);
+  const [packages, setPackages] = useState<FileProfile[]>([]);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const focusGuide = () => heading.current?.focus({ preventScroll: true });
   const active = ['temporary', 'site'].includes(v.access),
     task = v.task,
     g = task?.guide,
     f = v.snapshot?.guide;
-  const start = (id: WorkflowId) => {
-    setGoal(workflows[id].goal);
+  const start = (id: WorkflowId, requested = workflows[id].goal) => {
+    setGoal(requested);
     choose(false);
     setFeedback('');
-    void send({ kind: 'guide', workflow: id });
+    void send({ kind: 'guide', workflow: id, goal: requested });
   };
-  function help() {
+  function help(chosen?: FileProfile) {
+    setPackages([]);
+    if (
+      /\b(?:change|reset|set|submit|save)\b.*\b(?:password|passcode|payment details|bank details)\b/i.test(
+        goal,
+      )
+    ) {
+      if (task && !['completed', 'paused', 'cancelled'].includes(task.state))
+        void send({ kind: 'pause' });
+      choose(false);
+      setFeedback(
+        'That task isn’t supported. You control changes to passwords and payment details.',
+      );
+      return;
+    }
+    const download = publisherChoice(goal, v.origin, chosen);
+    if (download.kind !== 'unrelated') {
+      choose(false);
+      if (download.kind === 'ready') {
+        setFeedback('');
+        void send({ kind: 'assistGoal', goal, download: download.profile });
+      } else {
+        if (task && !['completed', 'paused', 'cancelled'].includes(task.state))
+          void send({ kind: 'pause' });
+        setFeedback(download.message);
+        setPackages(download.choices);
+      }
+      return;
+    }
     const id = resolveGoal(goal);
+    if (
+      goal.trim() &&
+      id === 'unsupported' &&
+      v.origin &&
+      !needsCitationChoice(v.origin, goal)
+    ) {
+      choose(false);
+      setFeedback('');
+      void send({ kind: 'assistGoal', goal });
+      return;
+    }
     if (id === 'clarify' || id === 'unsupported') {
       if (task && !['completed', 'paused', 'cancelled'].includes(task.state))
         void send({ kind: 'pause' });
@@ -75,7 +134,7 @@ export function Guidance({
           : 'That task isn’t supported. Choose one of these two tasks.',
       );
       choose(true);
-    } else start(id);
+    } else start(id, goal);
   }
   return (
     <section aria-label="Guided task">
@@ -93,8 +152,16 @@ export function Guidance({
           maxLength={240}
           value={goal}
           onChange={(e) => {
+            if (
+              task?.adaptive &&
+              task.goal !== e.target.value &&
+              !task.adaptive.status.startsWith('Goal edited.') &&
+              !['cancelled', 'completed'].includes(task.state)
+            )
+              void send({ kind: 'assistControl', action: 'edit' });
             setGoal(e.target.value);
             setFeedback('');
+            setPackages([]);
           }}
           placeholder="What would you like to find?"
         />
@@ -111,16 +178,41 @@ export function Guidance({
         Choose a supported task
       </button>
       {feedback && <p role="status">{feedback}</p>}
+      {packages.map((p) => (
+        <button
+          type="button"
+          key={p}
+          onClick={(e) => {
+            if (e.detail === 0) focusGuide();
+            help(p);
+          }}
+        >
+          {products[p].name} · Windows x64 EXE
+        </button>
+      ))}
       {choices && (
         <div className="choices">
           {workflowIds.map((id) => (
-            <button key={id} disabled={!active} onClick={() => start(id)}>
+            <button
+              key={id}
+              disabled={!active}
+              onClick={(e) => {
+                if (e.detail === 0 && e.currentTarget === document.activeElement) focusGuide();
+                start(id);
+              }}
+            >
               {workflows[id].name}
             </button>
           ))}
         </div>
       )}
-      <small>Goals are matched locally. You click each step.</small>
+      <small>
+        AI guidance shares your goal and limited public control labels with the paired service. The
+        citation and publisher checks also have local routes.
+      </small>
+      <h2 ref={heading} tabIndex={-1} className={g ? 'guide-heading' : 'sr-only'}>
+        Your guide
+      </h2>
       {g && task && (
         <div className="guide-progress" aria-live="polite">
           <span className="eyebrow">
@@ -144,6 +236,7 @@ export function Guidance({
               {f.ref && f.placement && (
                 <Reveal
                   position={f.placement}
+                  keyboardFocus={focusGuide}
                   show={() => void send({ kind: 'reveal', ref: f.ref! })}
                 />
               )}
@@ -175,7 +268,7 @@ export function Guidance({
               <button onClick={() => send({ kind: 'cancel' })}>Cancel task</button>
             </div>
           )}
-          <button disabled={!active} onClick={() => start(g.workflow)}>
+          <button disabled={!active} onClick={() => start(g.workflow, task.goal)}>
             Restart task
           </button>
           {(task.state === 'showing_step' ||

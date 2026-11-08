@@ -2,6 +2,8 @@ import { Fault, permittedOrigin, type Preferences } from '@safestep/contracts';
 import type { RecordState } from './state';
 
 export const bridgeFile = 'content-scripts/bridge.js';
+export const protectionFile = 'content-scripts/protection.js';
+export const allWeb = ['http://*/*','https://*/*'];
 export const pattern = (site: string) =>
   new URL(site).protocol + '//' + new URL(site).hostname + '/*';
 export function removedOrigin(site: string, patterns: string[]) {
@@ -53,19 +55,27 @@ export async function probe(tabId: number, site: string) {
 }
 export async function syncRegistrations(prefs: Preferences) {
   const patterns = [...new Set(prefs.sites.map(pattern))].sort();
-  const current = await chrome.scripting.getRegisteredContentScripts({ ids: ['safestep-enabled'] });
+  const auto = prefs.protection;
+  const protectedSites = auto?.scope === 'all' ? allWeb : auto?.scope === 'selected' ? [...new Set(auto.sites.map(pattern))] : [];
+  await Promise.all([
+    register('safestep-enabled', patterns, bridgeFile),
+    register('safestep-protection', protectedSites, protectionFile),
+  ]);
+}
+async function register(id: string, patterns: string[], file: string) {
+  const current = await chrome.scripting.getRegisteredContentScripts({ ids: [id] });
   const permitted: string[] = [];
   for (const p of patterns)
     if (await chrome.permissions.contains({ origins: [p] })) permitted.push(p);
   if (!permitted.length) {
     if (current.length)
-      await chrome.scripting.unregisterContentScripts({ ids: ['safestep-enabled'] });
+      await chrome.scripting.unregisterContentScripts({ ids: [id] });
     return;
   }
   const reg = {
-    id: 'safestep-enabled',
+    id,
     matches: permitted,
-    js: [bridgeFile],
+    js: [file],
     allFrames: false,
     persistAcrossSessions: true,
     runAt: 'document_idle' as const,

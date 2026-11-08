@@ -1,8 +1,22 @@
-import { FeatureResult, type Features, type PageSnapshot, type Subject } from '@safestep/contracts';
+import {
+  FeatureResult,
+  type Features,
+  type PageSnapshot,
+  type Subject,
+  type ReviewData,
+  type ShoppingData,
+  type TaskSession,type CleanupView,
+  type CompareView,
+} from '@safestep/contracts';
 export type FeatureKey = (typeof Features)[number];
 export interface FeatureInput {
   page: PageSnapshot;
   subject: Subject;
+  review?: ReviewData;
+  shopping?:ShoppingData;
+  task?:TaskSession;
+  cleanup?:CleanupView;
+  comparison?:CompareView;
 }
 export interface SiteAdapter {
   id: string;

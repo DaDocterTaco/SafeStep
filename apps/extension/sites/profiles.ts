@@ -36,28 +36,43 @@ export const workflows: Record<
   },
 };
 export const workflowIds = Object.keys(workflows) as WorkflowId[];
+export function requestsPrivateAccountChange(text:string) {
+  return /^(?:please\s+)?(?:(?:help me|can you)\s+)?(?:change|reset|set|submit|save)\b[^.!?;]*\b(?:password|passcode|payment details|bank details)\b/i.test(text.trim());
+}
 export function profileFor(origin: string) {
   return workflowIds.find((id) => origin === 'https://' + workflows[id].host);
+}
+// The two local choices are appropriate for an unsupported Wikipedia citation
+// request. Mentioning a citation, HTML element, or excluded section is not one.
+export function needsCitationChoice(origin: string, goal: string) {
+  if (origin !== 'https://' + workflows.wikipedia_cite_apa.host) return false;
+  const request = goal.normalize('NFKC').toLowerCase().trim()
+    .replace(/^(?:please\s+)?(?:help me\s+|can you\s+)?/, '');
+  return /^(?:how (?:can|do) i cite\b|(?:find|show)(?: me)? (?:an? |the )?(?:(?:apa|mla|chicago) (?:citation|reference)\b|citation (?:for|of)\b))/.test(request);
 }
 export function resolveGoal(input: string): WorkflowId | 'clarify' | 'unsupported' {
   const g = input
     .normalize('NFKC')
     .toLowerCase()
-    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  // Match bounded local requests; don't turn unrelated actions into a supported task.
-  const wiki = /\b(cite|citation|apa)\b/.test(g),
-    video = /\bwindows\b/.test(g) && /\b(vlc|download|videolan)\b/.test(g);
-  if (wiki && video) return 'clarify';
+  // Match the whole request. An unrecognized named subject, action or qualifier
+  // cannot be dropped while choosing one of our two available tasks.
+  const request = g.replace(/^(?:please )?(?:help me |can you )?/, '').replace(/ please$/, '');
   if (
-    /\b(buy|pay|install|uninstall|delete|submit|upload|edit|mla|chicago|bibtex|harvard|linux|macos|android)\b/.test(
-      g,
+    /^(?:how do i cite (?:this (?:page|article)|phishing)|(?:find|show)(?: me)? (?:an? |the )?(?:apa citation(?: for (?:this (?:article|page)|(?:the )?phishing(?: article)?))?|article citation))$/.test(
+      request,
     )
   )
-    return 'unsupported';
-  if (wiki && /\b(apa|cite|article|page)\b/.test(g)) return 'wikipedia_cite_apa';
-  if (video) return 'videolan_windows_page';
+    return 'wikipedia_cite_apa';
+  if (
+    /^(?:(?:find|show)(?: me)? (?:the )?(?:official )?(?:vlc(?: media player)? for windows|windows vlc (?:download )?page)|where is the windows download page)$/.test(
+      request,
+    )
+  )
+    return 'videolan_windows_page';
+  if (/\b(?:cite|citation|apa)\b/.test(request) && /\bvlc\b/.test(request)) return 'clarify';
   return !g ||
     /^(help( me)?|guide( me)?|download|vlc|windows|citation|find (it|a page)|what can you do)$/.test(
       g,

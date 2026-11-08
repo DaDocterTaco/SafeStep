@@ -1,0 +1,256 @@
+import assert from 'node:assert/strict';
+import { setTimeout as delay } from 'node:timers/promises';
+
+export async function until(fn, label, ms = 8000) {
+  const end = Date.now() + ms;
+  let last;
+  while (Date.now() < end) {
+    try {
+      const r = await fn();
+      if (r) return r;
+    } catch (e) {
+      last = e;
+    }
+    await delay(70);
+  }
+  throw Error('Timed out: ' + label + (last ? ' (' + String(last.message).slice(0, 90) + ')' : ''));
+}
+export const button = (p, text) =>
+  p.locator('::-p-aria(' + text + '[role="button"])').setTimeout(7000);
+function children(n) {
+  return [...(n.children ?? []), ...(n.shadowRoots ?? [])];
+}
+function find(n, match) {
+  if (match(n)) return n;
+  for (const c of children(n)) {
+    const found = find(c, match);
+    if (found) return found;
+  }
+}
+function attr(n, k) {
+  const a = n.attributes ?? [];
+  for (let i = 0; i < a.length; i += 2) if (a[i] === k) return a[i + 1];
+  return null;
+}
+function textOf(n) {
+  return (n.nodeType === 3 ? n.nodeValue : '') + children(n).map(textOf).join('');
+}
+function elementMetrics() {
+  const r = this.getBoundingClientRect(),
+    c = getComputedStyle(this);
+  return {
+    rect: { x: r.x, y: r.y, w: r.width, h: r.height },
+    visible:
+      this.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) &&
+      r.width > 0 &&
+      r.height > 0,
+    pointer: c.pointerEvents,
+    tabIndex: this.tabIndex,
+    focused: this.matches(':focus'),
+    focusVisible: this.matches(':focus-visible'),
+    color: c.color,
+    background: c.backgroundColor,
+    border: c.borderTopColor,
+    outline: c.outlineStyle,
+    outlineColor: c.outlineColor,
+    transition: c.transitionDuration,
+    animations: this.getAnimations().filter((a) => a.playState === 'running').length,
+    role: this.getAttribute('role'),
+    live: this.getAttribute('aria-live'),
+  };
+}
+async function metrics(cdp, n) {
+  const { object } = await cdp.send('DOM.resolveNode', { backendNodeId: n.backendNodeId });
+  try {
+    return (
+      await cdp.send('Runtime.callFunctionOn', {
+        objectId: object.objectId,
+        functionDeclaration: elementMetrics.toString(),
+        returnByValue: true,
+      })
+    ).result.value;
+  } finally {
+    await cdp.send('Runtime.releaseObject', { objectId: object.objectId }).catch(() => {});
+  }
+}
+// Use the debug protocol read-only to observe extension-owned closed shadow
+// nodes. Never attach a new shadow root or replace product event handlers.
+export async function overlay(s, type = 'outline') {
+  const cdp = s.tabSession;
+  const tree = (await cdp.send('DOM.getDocument', { depth: -1, pierce: true })).root;
+  const host = find(tree, (n) => attr(n, 'data-safestep-' + type) !== null);
+  if (!host) return null;
+  const o = {
+    host: await metrics(cdp, host),
+    shadow: (host.shadowRoots ?? []).map((n) => n.shadowRootType),
+    text: '',
+    buttons: [],
+  };
+  for (const sh of host.shadowRoots ?? []) {
+    const hint =
+      find(sh, (n) => attr(n, 'data-safestep-hint') !== null) ??
+      find(
+        sh,
+        (n) =>
+          ['SPAN', 'P', 'DIV', 'ASIDE'].includes(n.nodeName) &&
+          n.children?.some((c) => c.nodeType === 3 && c.nodeValue.trim()),
+      );
+    if (type === 'outline' && hint) {
+      o.hint = await metrics(cdp, hint);
+      o.text = textOf(hint).replace(/\s+/g, ' ').trim().slice(0, 200);
+    }
+    async function visit(n) {
+      if (n.nodeName === 'BUTTON' || n.nodeName === 'A') {
+        const name = (attr(n, 'aria-label') || textOf(n)).trim();
+        if (name) o.buttons.push({ name, ...(await metrics(cdp, n)) });
+      }
+      for (const c of children(n)) await visit(c);
+    }
+    if (type !== 'outline') await visit(sh);
+  }
+  return o;
+}
+export async function dockControl(s, name, activate = false) {
+  const node = await until(async () => {
+    const dock = await overlay(s, 'dock');
+    return dock?.buttons.find((b) => b.name === name && b.visible);
+  }, 'visible compact control ' + name);
+  if (activate)
+    await s.page.mouse.click(node.rect.x + node.rect.w / 2, node.rect.y + node.rect.h / 2);
+  return node;
+}
+export async function currentTarget(s, selector) {
+  return s.page.$eval(selector, (e) => {
+    const b = e.getBoundingClientRect(),
+      x = b.left + b.width / 2,
+      y = b.top + b.height / 2,
+      front = document.elementFromPoint(x, y);
+    return {
+      rect: { x: b.x, y: b.y, w: b.width, h: b.height },
+      label: e.innerText,
+      hit: !!front && e.contains(front),
+      focus: document.activeElement === e,
+      scrollY: window.scrollY,
+      viewport: { w: innerWidth, h: innerHeight },
+      route: location.pathname,
+    };
+  });
+}
+const near = (x, y) => Math.abs(x - y) <= 3;
+export function aligned(outer, t) {
+  return (
+    outer &&
+    t &&
+    near(outer.x, t.x - 3) &&
+    near(outer.y, t.y - 3) &&
+    near(outer.w, t.w + 6) &&
+    near(outer.h, t.h + 6)
+  );
+}
+export function overlaps(a, b) {
+  return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+}
+export function verifyCue(c, t) {
+  assert(c && c.hint?.visible && c.text, 'visible adjacent instruction');
+  assert.equal(c.host.pointer, 'none');
+  assert.equal(c.hint.pointer, 'none');
+  assert(c.hint.tabIndex < 0);
+  assert(c.shadow.includes('closed'));
+  assert(aligned(c.host.rect, t.rect), 'outline follows the selected target box');
+  assert(!overlaps(c.hint.rect, t.rect), 'hint must leave the target uncovered');
+  assert(t.hit, 'target center receives the hit');
+  const h = c.hint.rect,
+    v = t.viewport;
+  assert(
+    h.x >= 1 && h.y >= 1 && h.x + h.w <= v.w - 1 && h.y + h.h <= v.h - 1,
+    'visible hint remains inside measured viewport',
+  );
+}
+export async function panelClosed(s) {
+  return !(await s.root.send('Target.getTargets', { filter: [{}] })).targetInfos.some((t) =>
+    t.url.endsWith(s.id + '/sidepanel.html'),
+  );
+}
+export async function reopen(s, viaDock = true) {
+  if (viaDock) await dockControl(s, 'Open SafeStep', true);
+  else {
+    await s.page.bringToFront();
+    await s.activate(s.page);
+  }
+  s.panel = await (
+    await s.browser.waitForTarget(
+      (t) => t.url() === 'chrome-extension://' + s.id + '/sidepanel.html',
+      { timeout: 8000 },
+    )
+  ).asPage();
+  await s.panel.waitForSelector('#chat-composer');
+}
+export async function media(s, reduce, forced = false) {
+  const features = [
+    { name: 'prefers-reduced-motion', value: reduce ? 'reduce' : 'no-preference' },
+    { name: 'forced-colors', value: forced ? 'active' : 'none' },
+  ];
+  await s.tabSession.send('Emulation.setEmulatedMedia', { features });
+  const cp = await s.panel.createCDPSession();
+  try {
+    await cp.send('Emulation.setEmulatedMedia', { features });
+  } finally {
+    await cp.detach();
+  }
+}
+export async function panelContrast(panel) {
+  return panel.evaluate(() => {
+    const parse = (value) => {
+      const match =
+        /^rgba?\(\s*([\d.]+)[, ]+([\d.]+)[, ]+([\d.]+)(?:\s*[,/]\s*([\d.]+))?\s*\)$/.exec(value);
+      return match
+        ? [
+            Number(match[1]),
+            Number(match[2]),
+            Number(match[3]),
+            match[4] === undefined ? 1 : Number(match[4]),
+          ]
+        : null;
+    };
+    const over = (rgb, bg) => rgb.slice(0, 3).map((v, i) => rgb[3] * v + (1 - rgb[3]) * bg[i]);
+    const luminance = (rgb) =>
+      rgb
+        .slice(0, 3)
+        .map((v) => {
+          const c = v / 255;
+          return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+        })
+        .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
+    return [
+      ...document.querySelectorAll(
+        'header h1,header strong,header button,#chat-composer,.site-warning strong',
+      ),
+    ]
+      .filter((e) => e.checkVisibility() && !e.disabled)
+      .slice(0, 8)
+      .map((e) => {
+        const s = getComputedStyle(e),
+          fg = parse(s.color);
+        let base = [255, 255, 255],
+          p = e,
+          colors = [];
+        while (p) {
+          colors.unshift(parse(getComputedStyle(p).backgroundColor));
+          p = p.parentElement;
+        }
+        for (const c of colors) if (c) base = over(c, base);
+        const lf = fg && luminance(over(fg, base)),
+          lb = luminance(base);
+        return {
+          label: e.getAttribute('aria-label') || e.textContent?.trim().slice(0, 70) || e.id,
+          color: s.color,
+          background: base.map((v) => Math.round(v)),
+          font: s.fontSize,
+          ratio:
+            lf === null
+              ? null
+              : +((Math.max(lf, lb) + 0.05) / (Math.min(lf, lb) + 0.05)).toFixed(2),
+        };
+      });
+  });
+}

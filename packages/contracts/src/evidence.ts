@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { FeatureId, Errors } from './model.js';
+import { SellerAccount } from './shopping.js';
+import {mozillaReviewScope} from './source-scope.js';
 
 export const reportKinds = [
   'website_identity',
@@ -9,14 +11,8 @@ export const reportKinds = [
   'offer',
   'intent',
 ] as const;
-const publicHost = z
-  .string()
-  .max(253)
-  .regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/)
-  .refine(
-    (s) =>
-      !/(?:^|\.)(localhost|local|internal|test|invalid|example|onion|arpa|home|lan|corp)$/.test(s),
-  );
+import { publicHost } from './public-host.js';
+export { publicHost } from './public-host.js';
 const publicId = z
   .string()
   .min(1)
@@ -27,7 +23,17 @@ const item = { market: publicHost, publicId };
 export const Subject = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('website_identity'), ...site }),
   z.strictObject({ kind: z.literal('website_risk'), ...site }),
-  z.strictObject({ kind: z.literal('seller_reputation'), ...item }),
+  z
+    .strictObject({
+      kind: z.literal('seller_reputation'),
+      market: publicHost,
+      publicId: SellerAccount,
+    })
+    .refine(
+      (s) =>
+        !s.publicId.includes('.') ||
+        ['ebay.com', 'www.ebay.com', 'resell.store'].includes(s.market),
+    ),
   z.strictObject({ kind: z.literal('product_feedback'), ...item }),
   z.strictObject({ kind: z.literal('offer'), ...item }),
   z.strictObject({ kind: z.literal('intent'), workflow: publicId }),
@@ -40,7 +46,7 @@ const sourceURL = z
   .refine((s) => {
     try {
       const u = new URL(s);
-      return !u.username && !u.password && !u.hash && !u.search;
+      return !u.username && !u.password && !u.hash && (!u.search||mozillaReviewScope(u));
     } catch {
       return false;
     }

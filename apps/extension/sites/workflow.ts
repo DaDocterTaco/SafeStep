@@ -161,7 +161,6 @@ export function sameObservation(a: Local, b: Local) {
     a.result === b.result &&
     a.step === b.step &&
     a.href === b.href &&
-    a.placement === b.placement &&
     JSON.stringify(a.link) === JSON.stringify(b.link)
   );
 }

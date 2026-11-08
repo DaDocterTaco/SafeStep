@@ -1,0 +1,21 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>SafeStep · Download check lab</title><style>body{font:17px/1.5 system-ui;max-width:730px;margin:28px auto}td,th{padding:5px}button{margin:3px}#region[data-off]{padding-top:160vh}</style>
+<p>Labelled harmless publisher examples. All file links are intercepted on this page. Activation count: <b id="count">0</b>.</p>
+<nav><a href="?product=vlc">VLC example</a> · <a href="?product=7zip">7-Zip example</a></nav>
+<button id="off">Move below viewport</button><button id="duplicate">Duplicate target</button><button id="wrong">Change owner or path</button><button id="remove">Remove target</button><button id="replace">Replace node</button>
+<button id="deep">Place a second identical button beyond the scan limit</button><button id="unusable">Disable the publisher button</button>
+<main id="region"></main>
+<div aria-label="Sponsored"><strong>Sponsored</strong> <a href="https://ads.example.test/offer">Download now</a></div>
+<a href="https://example.org/guide">Download instructions</a><button>Download with script</button><a href="data:text/plain,demo">Download data</a><a href="blob:https://example.org/id">Download blob</a>
+<label>Practice field <input value="PRIVATE_STAGE3_FIELD"></label><iframe title="Uninspected application" srcdoc="<button>PRIVATE_STAGE3_FRAME</button>"></iframe>
+<script>
+const zip=new URL(location.href).searchParams.get('product')==='7zip',region=document.querySelector('#region');
+function table(v){return '<p><b>Download 7-Zip '+v+' (fixture) for Windows</b>:</p><table><tr><th>Link</th><th>Type</th><th>System</th><th>Description</th></tr>'+['x64','x86','ARM64','MSI'].map(arch=>'<tr><td><a href="https://github.com/ip7z/7zip/releases/download/'+v+'/7z'+v.replace('.','')+'-'+arch.toLowerCase()+'.'+(arch==='MSI'?'msi':'exe')+'">Download</a></td><td>'+(arch==='MSI'?'.msi':'.exe')+'</td><td>'+(arch==='x64'?'64-bit Windows x64':arch)+'</td><td>7-Zip installer for Windows</td></tr>').join('')+'</table>'}
+region.innerHTML=zip?'<h1>Download</h1>'+table('26.05')+table('22.01'):'<h1>VLC for Windows</h1><div id="downloadDetails">Version 4.2.0 • Windows 64bit • fixture</div><a id="downloadButton2" href="https://get.videolan.org/vlc/4.2.0/win64/vlc-4.2.0-win64.exe">Download VLC</a>';
+const target=()=>region.querySelector('a');off.onclick=()=>region.setAttribute('data-off','');
+duplicate.onclick=()=>{const item=zip?target().closest('tr'):target();item.after(item.cloneNode(true))};
+deep.onclick=()=>{const a=target(),spacer=document.createElement('div');for(let i=0;i<1800;i++)spacer.append(document.createElement('span'));a.after(spacer,a.cloneNode(true))};
+unusable.onclick=()=>{const a=target();a.setAttribute('aria-disabled','true');a.tabIndex=-1;a.style.pointerEvents='none';a.addEventListener('click',e=>e.preventDefault())};
+wrong.onclick=()=>target().href=zip?'https://github.com/other-owner/7zip/releases/download/26.05/7z2605-x64.exe':'https://get.videolan.org/other/vlc-win64.exe';
+remove.onclick=()=>target()?.remove();replace.onclick=()=>target().replaceWith(target().cloneNode(true));
+document.addEventListener('click',e=>{if(e.target.closest('a,button')&&!e.target.closest('nav')&&!e.target.id){e.preventDefault();count.textContent=String(Number(count.textContent)+1);}});
+</script></html>

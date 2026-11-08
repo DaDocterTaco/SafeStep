@@ -1,2 +1,4 @@
-# The bundler preserves this template's newlines in the unpacked side panel.
-apps/extension/entrypoints/sidepanel/index.html text eol=lf
+# Preserve the release source bytes in standard Windows and Unix checkouts.
+* text=auto eol=lf
+# This historical Chrome driver contains mixed newlines in the frozen archive.
+tests/chrome-three-site-shopping-cleanup.mjs -text whitespace=trailing-space,space-before-tab,cr-at-eol

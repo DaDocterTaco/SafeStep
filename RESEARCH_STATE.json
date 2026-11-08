@@ -1,68 +1,76 @@
 {
-  "record_scope": "Public excerpt of the shared research plan for the feature registry test and development roadmap.",
   "feature_priority": [
     {
       "rank": 1,
       "id": "visual_guidance",
       "name": "Visual task assistant",
       "reason": "The user's primary purpose is helping people navigate with confidence.",
-      "done_when": "A user states a supported goal and follows accurate, sequential highlights across the task, including a settings-navigation example."
+      "done_when": "A user states a supported goal and follows accurate, sequential highlights across the task, including a settings-navigation example.",
+      "acceptance": "A plain-language goal works through observed controls on authorized ordinary public pages beyond named scripts, with clarification, reliable highlights and actual completion verification."
     },
     {
       "rank": 2,
       "id": "url_identity",
       "name": "Website address verification",
       "reason": "Actual domain identity supports website, download and shopping checks.",
-      "done_when": "Expected domains, lookalikes and misleading subdomains produce appropriate findings based on the actual URL."
+      "done_when": "Expected domains, lookalikes and misleading subdomains produce appropriate findings based on the actual URL.",
+      "acceptance": "Expected domains, lookalikes and misleading subdomains produce appropriate findings based on the actual URL."
     },
     {
       "rank": 3,
       "id": "site_trust",
       "name": "Website trust popup",
       "reason": "Users need understandable evidence before trusting an unfamiliar website.",
-      "done_when": "A supported website displays a trust summary using local findings and available external evidence, with sources and an explicit missing-data state."
+      "done_when": "A supported website displays a trust summary using local findings and available external evidence, with sources and an explicit missing-data state.",
+      "acceptance": "Opted-in granted-site visits trigger checks without opening the panel; credible exact-domain outside merchant reports produce an attributed visible caution, while missing/uncertain coverage stays unknown."
     },
     {
       "rank": 4,
       "id": "download_guidance",
       "name": "Download button protection",
       "reason": "This directly addresses the user's concern about misleading buttons and popups.",
-      "done_when": "The extension compares inspectable destinations on a supported download page, explains a misleading button, and highlights the intended route."
+      "done_when": "The extension compares inspectable destinations on a supported download page, explains a misleading button, and highlights the intended route.",
+      "acceptance": "A natural download request works in guide and approved automatic mode, comparing publisher/package/destination evidence and stopping at the final user-owned file control."
     },
     {
       "rank": 5,
       "id": "seller_assessment",
       "name": "Seller reputation checks",
       "reason": "A familiar marketplace does not establish the reliability of an individual seller.",
-      "done_when": "A supported seller page yields an evidence-linked summary of seller feedback, history and other listings, with identity and coverage clear."
+      "done_when": "A supported seller page yields an evidence-linked summary of seller feedback, history and other listings, with identity and coverage clear.",
+      "acceptance": "Exact seller-service feedback is assessed on existing sources and required Amazon US listing/profile contexts through permitted evidence, separate from marketplace/product reputation."
     },
     {
       "rank": 6,
       "id": "product_assessment",
       "name": "Product review checks",
       "reason": "Product quality and seller service are different shopping decisions.",
-      "done_when": "A supported product page yields a summary of product-specific reviews and recurring concerns, separated from seller findings."
+      "done_when": "A supported product page yields a summary of product-specific reviews and recurring concerns, separated from seller findings.",
+      "acceptance": "A supported product page yields a summary of product-specific reviews and recurring concerns, separated from seller findings."
     },
     {
       "rank": 7,
       "id": "automatic_navigation",
       "name": "Automatic task navigation",
       "reason": "This builds on validated guidance and destination checks to reduce user effort.",
-      "done_when": "A user-approved supported navigation task runs in the existing session, with progress, pause and cancel, stopping for any consequential final action."
+      "done_when": "A user-approved supported navigation task runs in the existing session, with progress, pause and cancel, stopping for any consequential final action.",
+      "acceptance": "Approved capability-based read-only navigation progresses across current public controls and verified public search where declared, with pause/takeover/stop and manual handoff before consequential actions."
     },
     {
       "rank": 8,
       "id": "page_cleanup",
       "name": "Hide distracting ads and popups",
       "reason": "Removing identified distractions improves guidance once detection works.",
-      "done_when": "A toggle hides identified distractions on a supported page and a restore action returns them without breaking essential controls."
+      "done_when": "A toggle hides identified distractions on a supported page and a restore action returns them without breaking essential controls.",
+      "acceptance": "A toggle hides identified distractions on a supported page and a restore action returns them without breaking essential controls."
     },
     {
       "rank": 9,
       "id": "shopping_alternatives",
       "name": "Compare better products and sellers",
       "reason": "This uses the product and seller evidence built in earlier steps.",
-      "done_when": "Available comparable options display observed prices, seller and product evidence, reasons for comparison and usable source links."
+      "done_when": "Available comparable options display observed prices, seller and product evidence, reasons for comparison and usable source links.",
+      "acceptance": "Available comparable options display observed prices, seller and product evidence, reasons for comparison and usable source links."
     }
   ],
   "build_plan": [
@@ -107,8 +115,9 @@
     },
     {
       "stage": 5,
-      "phase": "Stage 5: Automatic navigation and page cleanup",
+      "phase": "Stage 5: AI goal understanding, broader website guidance, automatic navigation and page cleanup",
       "feature_ids": [
+        "visual_guidance",
         "automatic_navigation",
         "page_cleanup"
       ]
@@ -122,7 +131,22 @@
     },
     {
       "stage": 7,
-      "phase": "Stage 7: Full integration, polish and demonstration",
+      "phase": "Stage 7: Complete and verify all nine core capabilities",
+      "feature_ids": [
+        "visual_guidance",
+        "url_identity",
+        "site_trust",
+        "download_guidance",
+        "seller_assessment",
+        "product_assessment",
+        "automatic_navigation",
+        "page_cleanup",
+        "shopping_alternatives"
+      ]
+    },
+    {
+      "stage": 8,
+      "phase": "Stage 8: Simple AI chat interface and final product finish",
       "feature_ids": [
         "visual_guidance",
         "url_identity",
@@ -137,8 +161,9 @@
     },
     {
       "stage": null,
-      "phase": "After Stage 7: Submission administration",
+      "phase": "After Stage 8: Submission administration",
       "feature_ids": []
     }
-  ]
+  ],
+  "record_scope": "Public planning excerpt. Requirements describe intended scope; build verification is recorded separately."
 }

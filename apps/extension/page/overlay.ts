@@ -1,14 +1,17 @@
 export class Outline {
+  private static targets=new Set<HTMLElement>();
+  static protected(region:HTMLElement){return [...this.targets].some(t=>t===region||region.contains(t)||t.contains(region));}
   host: HTMLDivElement | null = null;
   private target: HTMLElement | null = null;
-  private observer: ResizeObserver | null = null;
   private frame = 0;
+  private bounds = '';
   private orphanCheck: ReturnType<typeof setInterval> | undefined;
   private position = () => {
     if (this.frame) return;
     this.frame = requestAnimationFrame(() => {
       this.frame = 0;
       this.draw();
+      if (this.host) this.position();
     });
   };
   private draw() {
@@ -17,6 +20,9 @@ export class Outline {
       return;
     }
     const b = this.target.getBoundingClientRect();
+    const bounds = [b.left, b.top, b.width, b.height].join(',');
+    if (this.bounds === bounds) return;
+    this.bounds = bounds;
     for (const [name, value] of Object.entries({
       left: b.left - 3,
       top: b.top - 3,
@@ -28,6 +34,7 @@ export class Outline {
   show(target: HTMLElement) {
     this.clear();
     this.target = target;
+    Outline.targets.add(target);
     const el = document.createElement('div');
     el.dataset.safestepOutline = '';
     el.setAttribute('aria-hidden', 'true');
@@ -36,22 +43,20 @@ export class Outline {
     this.host = el;
     document.documentElement.append(el);
     this.draw();
-    this.observer = new ResizeObserver(this.position);
-    this.observer.observe(target);
-    window.addEventListener('scroll', this.position, true);
-    window.addEventListener('resize', this.position);
+    // A preceding image can shift the target without resizing or scrolling it.
+    // Only the one selected element is measured, and stable frames write nothing.
+    this.position();
     // Selection has no idle timeout. Clean up an orphan if the extension is unloaded.
     this.orphanCheck = setInterval(() => {
       if (!chrome.runtime?.id) this.clear();
     }, 60000);
   }
   clear() {
+    if(this.target)Outline.targets.delete(this.target);
     cancelAnimationFrame(this.frame);
     this.frame = 0;
     clearInterval(this.orphanCheck);
-    this.observer?.disconnect();
-    window.removeEventListener('scroll', this.position, true);
-    window.removeEventListener('resize', this.position);
+    this.bounds = '';
     this.host?.remove();
     this.host = null;
     this.target = null;

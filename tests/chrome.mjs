@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { openAdvanced, openArea, openDetails } from './support/stage7-panel.mjs';
 import { readFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { resolve, dirname, basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -24,6 +25,8 @@ assert.equal(manifest.manifest_version, 3);
 assert.deepEqual(manifest.host_permissions, ['http://127.0.0.1/*']);
 assert.equal(manifest.content_scripts, undefined);
 const fixture = await startFixture(0);
+const apiHost = process.env.SAFESTEP_TEST_API_HOST ?? '127.0.0.1';
+assert(/^127\.0\.0\.[1-9]$/.test(apiHost), 'test API must use loopback');
 const executablePath =
   process.env.CHROME_PATH ??
   (process.platform === 'win32'
@@ -40,11 +43,13 @@ const launch = () =>
     executablePath,
     userDataDir: profile,
     pipe: true,
+    env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !/(?:API_KEY|TOKEN|SECRET|COOKIE|PASSWORD)/i.test(key))),
     headless: false,
     defaultViewport: null,
     enableExtensions: true,
     args: [
       '--enable-unsafe-extension-debugging',
+      ...(apiHost === '127.0.0.1' ? [] : ['--host-resolver-rules=MAP 127.0.0.1:4317 ' + apiHost + ':4317']),
       '--no-first-run',
       '--disable-background-networking',
       '--window-position=-1600,40',
@@ -55,7 +60,7 @@ const api = makeApi(new ProvidersService({}));
 let browser;
 let panel, page;
 try {
-  api.listen(apiPort, '127.0.0.1');
+  api.listen(apiPort, apiHost);
   await once(api, 'listening');
   browser = await launch();
   const version = await browser.version(),
@@ -96,7 +101,17 @@ try {
     chrome.runtime.getContexts({ contextTypes: ['SIDE_PANEL'] }),
   );
   assert(contexts.length > 0);
-  const button = (name) => panel.locator('::-p-aria(' + name + '[role="button"])').setTimeout(6000);
+  const button = (name) => ({
+    click: async () => {
+      if (/^(?:Inspect page|Highlight |Clear highlight|Pause$|Resume$|Check local service)/.test(name)) {
+        await openAdvanced(panel);
+      } else if (/^(?:Clear SafeStep data|Enable on this site|Restore page)$/.test(name)) {
+        await openArea(panel, 'Settings');
+        await openDetails(panel, 'Access & preferences');
+      }
+      await panel.locator('::-p-aria(' + name + '[role="button"])').setTimeout(6000).click();
+    },
+  });
   const waitText = async (s) =>
     panel.waitForFunction((text) => document.body.innerText.includes(text), {}, s);
   await waitText('Access for this visit');
@@ -125,10 +140,16 @@ try {
   await button('Clear highlight').click();
   await page.waitForFunction(() => !document.querySelector('[data-safestep-outline]'));
   passed('panel cleared the outline');
-  await panel.locator('summary::-p-text(Sources & coverage)').click();
+  await openAdvanced(panel);
+  const sourceDetails = await openDetails(panel, 'Sources & coverage');
   await button('Check local service').click();
   await waitText('Local service connected.');
-  assert.equal(await panel.evaluate(() => document.querySelectorAll('details ul li').length), 6);
+  const sourceRows = await sourceDetails.$$eval(':scope > ul > li', (items) =>
+    items.map((item) => item.innerText.trim()),
+  );
+  assert.deepEqual(sourceRows, [
+    'intent', 'url threat', 'website reputation', 'seller feedback', 'product feedback', 'shopping comparison',
+  ].map((name) => name + ' · Not configured'));
   passed('native panel reached the loopback API and displayed six unconfigured providers');
   await runCases({
     browser,
@@ -225,7 +246,6 @@ try {
   passed(
     'browser restart with the same profile preserved preferences and had no previous tasks or handles',
   );
-  await panel.locator('summary::-p-text(Access & preferences)').click();
   await button('Clear SafeStep data').click();
   await waitText('Access needed');
   const empty = await view(panel);

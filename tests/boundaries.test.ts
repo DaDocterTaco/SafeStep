@@ -248,9 +248,9 @@ test('the registry preserves the planning files’ nine priorities, delivery cri
   );
   assert.deepEqual(
     registry.filter((f) => f.status === 'implemented').map((f) => f.id),
-    ['visual_guidance', 'url_identity'],
+    ['visual_guidance', 'url_identity', 'site_trust', 'download_guidance','seller_assessment','product_assessment','automatic_navigation','page_cleanup','shopping_alternatives'],
   );
-  assert(registry.slice(2).every((f) => f.status === 'unimplemented'));
+  assert(registry.every((f) => f.status === 'implemented'));
   const input = { page: snap, subject: { kind: 'intent' as const, workflow: 'fixture' } };
   assert.equal(registry[0]!.run(input).availability, 'unsupported');
   assert.equal(

@@ -20,6 +20,8 @@ const specs = {
 // Only a connector implemented on the server may turn a normalized subject into a fixed upstream request.
 export interface Provider {
   id: ProviderId;
+  // A threat connector opts in only for a confirmed positive match with its provider expiry.
+  positiveThreatExpiry?: (result: FeatureResult) => number | null;
   lookup(
     subject: Subject,
     options: { credential: string; signal: AbortSignal },
@@ -105,8 +107,10 @@ export class ProvidersService {
         )
       )
         return missing('provider_unavailable');
+      const policyExpiry =
+        provider === 'url_threat' ? (connector.positiveThreatExpiry?.(r) ?? 0) : Date.now() + 60000;
       const expiry = Math.min(
-        Date.now() + 60000,
+        policyExpiry,
         ...r.evidence.map((e) => (e.expiresAt ? Date.parse(e.expiresAt) : Date.now())),
       );
       if (expiry > Date.now()) {

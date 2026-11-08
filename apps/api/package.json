@@ -6,9 +6,12 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "start": "node --env-file-if-exists=.env dist/server.js"
+    "start": "node dist/server.js",
+    "start:with-model": "node --env-file-if-exists=.env --import ../../scripts/stage8-paid-ledger.mjs dist/server.js --enable-gemini"
   },
   "dependencies": {
-    "@safestep/contracts": "0.1.0"
+    "@google/genai": "3.0.0",
+    "@safestep/contracts": "0.1.0",
+    "tldts": "7.4.19"
   }
 }

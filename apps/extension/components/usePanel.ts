@@ -167,7 +167,20 @@ export function usePanel() {
         if (fresh.snapshot!.context.revision !== view.snapshot!.context.revision)
           throw Error(messages.stale_document);
         await ask(t, fresh, c);
-      } else if (['pause', 'resume', 'cancel', 'guide', 'inspect'].includes(c.kind)) {
+      } else if (
+        [
+          'pause',
+          'resume',
+          'cancel',
+          'guide',
+          'inspect',
+          'review',
+          'shop',
+          'assistGoal',
+          'compare',
+        ].includes(c.kind) ||
+        (c.kind === 'assistControl' && ['pause', 'stop', 'takeover', 'edit'].includes(c.action))
+      ) {
         const fresh = await ask(t, null, { kind: 'view' });
         if (session.current !== version) return;
         if (view.task?.id !== fresh.task?.id || view.origin !== fresh.origin)

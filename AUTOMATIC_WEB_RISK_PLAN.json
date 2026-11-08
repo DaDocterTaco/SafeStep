@@ -1,0 +1,28 @@
+{
+  "title": "Automatic shared Google Web Risk protection across enabled public sites and all nine feature contexts",
+  "stage": 8,
+  "revision": "automatic-web-risk-1",
+  "scope": {
+    "feature_ids": [
+      "visual_guidance",
+      "url_identity",
+      "site_trust",
+      "download_guidance",
+      "seller_assessment",
+      "product_assessment",
+      "automatic_navigation",
+      "page_cleanup",
+      "shopping_alternatives"
+    ],
+    "stages": 8,
+    "primary_sites": [
+      "Wikipedia",
+      "VideoLAN",
+      "Resell.store"
+    ],
+    "architecture": "One shared threat service reused by the existing protection coordinator and feature tools; generic public-URL policy rather than a Wikipedia/VideoLAN/Resell-only implementation.",
+    "preserve": "Current all-nine-feature work, source identities, typed contracts, user control, private-data exclusions, independent evidence, parked Amazon seller-feedback and UI/UX-last order.",
+    "not_added": "No file-content malware scan, universal site-safety guarantee, global browser request firewall, arbitrary crawler or new browser-agent framework."
+  },
+  "record_scope": "Public planning excerpt. Requirements describe intended scope; build verification is recorded separately."
+}

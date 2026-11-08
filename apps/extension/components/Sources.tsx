@@ -1,7 +1,13 @@
 import { useState } from 'react';
-import { Health, Subject, parseWire, type FeatureResult } from '@safestep/contracts';
+import {
+  Health,
+  Subject,
+  parseWire,
+  type FeatureResult,
+  type ReviewData,
+} from '@safestep/contracts';
 import { EvidenceCard } from './EvidenceCard';
-export function Sources({ domain }: { domain: string | null }) {
+export function Sources({ domain, review }: { domain: string | null; review?: ReviewData }) {
   const [health, setHealth] = useState<Health | null>(null),
     [note, setNote] = useState('No sources checked.');
   async function check() {
@@ -29,9 +35,13 @@ export function Sources({ domain }: { domain: string | null }) {
     ? {
         featureId: 'site_trust',
         subject: subject.data,
-        availability: 'unimplemented',
-        finding: 'No risk assessment has been run.',
-        explanation: 'The inspector reads controls on this page. Website risk checks are planned.',
+        availability: review?.selection.kind === 'website' ? 'partial' : 'unavailable',
+        finding:
+          review?.selection.kind === 'website'
+            ? 'Local website check: ' + review.status.replaceAll('_', ' ') + '.'
+            : 'Use Check this website for current observations.',
+        explanation:
+          'Outside reviews and threat-list coverage appear separately in the website summary.',
         evidence: [],
         limitations: [],
         nextStep: '',

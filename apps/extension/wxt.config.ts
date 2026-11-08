@@ -5,7 +5,7 @@ export default defineConfig({
   webExt: { disabled: true }, // Dev mode watches locally; load its unpacked directory in the browser you choose.
   manifest: {
     name: 'SafeStep',
-    description: 'Follow citation and VLC guides one click at a time, and check website and link addresses locally.',
+    description: 'Use one chat to follow visual guides, inspect website warnings, find downloads and compare shopping evidence.',
     minimum_chrome_version: '120',
     permissions: ['activeTab', 'scripting', 'sidePanel', 'storage'],
     optional_host_permissions: ['http://*/*', 'https://*/*'],

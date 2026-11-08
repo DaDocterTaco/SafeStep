@@ -1,4 +1,5 @@
 import {
+  automaticThreatSubject,
   BridgeRequest,
   Fault,
   parseWire,
@@ -58,11 +59,27 @@ export function installBridge() {
   }
   function verifyGuide() {
     if (!guided || !snapshot) return;
-    if (
-      !sameObservation(guided, observeWorkflow(guided.workflow)) ||
-      (outline.host && !outline.host.isConnected)
-    )
+    const current = observeWorkflow(guided.workflow);
+    if (!sameObservation(guided, current) || (outline.host && !outline.host.isConnected)) {
       invalidate();
+      return;
+    }
+    if (current.placement && current.placement !== guided.placement && snapshot.guide?.ref) {
+      guided = current;
+      snapshot.guide.placement = current.placement;
+      void chrome.runtime
+        .sendMessage({
+          v: 2,
+          channel: 'changed',
+          tabId: snapshot.context.tabId,
+          documentId: snapshot.context.documentId,
+          revision: snapshot.context.revision,
+          epoch: generation,
+          reason: 'placement',
+          cue: { ref: snapshot.guide.ref, placement: current.placement },
+        })
+        .catch(() => {});
+    }
   }
   function scheduleGuide() {
     if (scheduled || (!guided && !manualCue)) return;
@@ -154,9 +171,9 @@ export function installBridge() {
     if (guided) discard();
     else invalidate();
   });
-  window.addEventListener('popstate', () => invalidate());
-  window.addEventListener('hashchange', () => invalidate());
-  nav?.addEventListener('currententrychange', () => invalidate());
+  window.addEventListener('popstate', checkRoute);
+  window.addEventListener('hashchange', checkRoute);
+  nav?.addEventListener('currententrychange', checkRoute);
   chrome.runtime.onMessage.addListener((raw, sender, send) => {
     if (
       sender.id !== chrome.runtime.id ||
@@ -257,6 +274,17 @@ export function installBridge() {
             invalidate('element_missing');
             throw new Fault('element_missing');
           }
+          const link=t.element instanceof HTMLAnchorElement ? t.element : t.element.closest('a[href]');
+          const href=link instanceof HTMLAnchorElement ? link.href : null;
+          const eligible=href && automaticThreatSubject(href,'target');
+          const destination=href===null?null:eligible && eligible.scope==='page'?eligible.url:'excluded';
+          if(c.kind==='destination'){
+            reply.controlDestination=destination;
+            reply.ok=true;
+            send(reply);
+            return;
+          }
+          if(c.checkedDestination!==undefined && c.checkedDestination!==destination)throw new Fault('stale_document');
           if (c.kind === 'reveal')
             t.element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
           outline.show(t.element);

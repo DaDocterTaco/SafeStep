@@ -1,0 +1,35 @@
+{
+  "title": "Combined all-nine-feature AI upgrade and three-site implementation",
+  "stage": 8,
+  "revision": "all-nine-three-sites-1",
+  "feature_ids": [
+    "visual_guidance",
+    "url_identity",
+    "site_trust",
+    "download_guidance",
+    "seller_assessment",
+    "product_assessment",
+    "automatic_navigation",
+    "page_cleanup",
+    "shopping_alternatives"
+  ],
+  "feature_requirements": "Use all nine detailed quality specifications in AI_FEATURE_UPGRADE_PLAN.json and the numbered sections of the full handoff. Apply each only to relevant page/source content and verify real results.",
+  "sites": [
+    {
+      "name": "Wikipedia",
+      "start": "https://en.wikipedia.org/wiki/Main_Page",
+      "type": "information"
+    },
+    {
+      "name": "VideoLAN",
+      "start": "https://www.videolan.org/",
+      "type": "software publisher"
+    },
+    {
+      "name": "Resell.store",
+      "start": "https://resell.store/",
+      "type": "marketplace"
+    }
+  ],
+  "record_scope": "Public planning excerpt. Requirements describe intended scope; build verification is recorded separately."
+}

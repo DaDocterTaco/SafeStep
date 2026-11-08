@@ -1,18 +1,13 @@
+import { CompareView, CompareSettings } from './comparison.js';
+import { ProtectionPreferences, ProtectionView } from './protection.js';
 import { z } from 'zod';
 import { AddressObservation, GuideFacts, Placement, Progress } from './guidance.js';
+import { bindingSchema, ReviewData } from './review.js';
+import { ShopView } from './shopping.js';
+import { AdaptiveState, CleanupView } from './assist.js';
+import { ChatConversation } from './conversation.js';
 
-export const Features = [
-  'visual_guidance',
-  'url_identity',
-  'site_trust',
-  'download_guidance',
-  'seller_assessment',
-  'product_assessment',
-  'automatic_navigation',
-  'page_cleanup',
-  'shopping_alternatives',
-] as const;
-export const FeatureId = z.enum(Features);
+export { FeatureId, Features } from './features.js';
 export const Errors = z.enum([
   'permission_required',
   'permission_denied',
@@ -121,6 +116,7 @@ export const PageSnapshot = z.strictObject({
 });
 export type PageSnapshot = z.infer<typeof PageSnapshot>;
 export const TaskSession = z.strictObject({
+  adaptive: AdaptiveState.optional(),
   id: id,
   tabId: tab,
   goal: z.string().max(240),
@@ -148,9 +144,26 @@ export type TaskStep = z.infer<typeof TaskStep>;
 export const Preferences = z.strictObject({
   largeText: z.boolean(),
   sites: z.array(origin).max(64),
+  protection: ProtectionPreferences.optional(),
 });
 export type Preferences = z.infer<typeof Preferences>;
 export const Checkpoint = z.strictObject({
+  chat: ChatConversation.optional(),
+  compare: z
+    .strictObject({
+      id: z.uuid(),
+      version: z.number().int().positive(),
+      origin: z.string().max(260),
+      url: z.string().max(512),
+      baselineId: z.string().max(160).optional(),
+      settings: CompareSettings.optional(),
+    })
+    .optional(),
+  cleanup: bindingSchema.optional(),
+  shopping: z
+    .strictObject({ seller: bindingSchema.optional(), product: bindingSchema.optional() })
+    .optional(),
+  review: bindingSchema.optional(),
   tabId: tab,
   epoch,
   invokedOrigin: origin.nullable(),
@@ -160,6 +173,15 @@ export const Checkpoint = z.strictObject({
 });
 export type Checkpoint = z.infer<typeof Checkpoint>;
 export const PanelView = z.strictObject({
+  chat: ChatConversation.optional(),
+  protection: ProtectionView.optional(),
+  comparison: CompareView.optional(),
+  cleanup: CleanupView.optional(),
+  shopping: z
+    .strictObject({ seller: ShopView.optional(), product: ShopView.optional() })
+    .optional(),
+  review: ReviewData.optional(),
+  reviewStale: z.boolean().optional(),
   tabId: tab,
   epoch,
   origin: origin.nullable(),

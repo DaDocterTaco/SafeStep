@@ -1,242 +1,562 @@
-import { useState } from 'react';
-import { messages, type PanelView } from '@safestep/contracts';
-import { registry } from '../features';
-import { pattern } from '../core/access';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { messages, threatFinding, type ChatAction, type FeatureId, type PanelView } from '@safestep/contracts';
 import { usePanel } from './usePanel';
-import { Sources } from './Sources';
-import { Guidance, Reveal, AddressCard, AddressInspector } from './Guidance';
+import {
+  featureNames,
+  ResultCard,
+  retainKeyboardFocus,
+  type CardAction,
+  type Send,
+  type Turn,
+} from './ChatCards';
+import { AccessButton, SecondarySurface } from './ChatSettings';
+import { ThreatLinks, TargetProtection, useVisibleProtection } from './Protection';
 
-type Send = ReturnType<typeof usePanel>['command'];
 const accessText: Record<PanelView['access'], string> = {
   temporary: 'Access for this visit',
-  site: 'Enabled on this site',
+  site: 'Site access enabled',
   permission_denied: 'Site access declined',
   permission_required: 'Access needed',
   permission_revoked: 'Access removed',
   unsupported_page: 'Unsupported page',
 };
-const stateText: Record<string, string> = {
-  inspecting: 'Inspecting…',
-  awaiting_user: 'Ready to highlight',
-  showing_step: 'Showing highlight',
-  paused: 'Paused',
-  cancelled: 'Cancelled',
+const sourceStatus = {
+  checking: 'Checking protection',
+  local: 'Address checked locally',
+  private: 'Private page · outside lookup skipped',
+  reports: 'Merchant reports found',
+  limited: 'Limited source evidence',
+  no_match: 'No matching reports in source',
+  unavailable: 'Outside source unavailable',
+  quota: 'Outside lookup limit reached',
 };
-function Workspace({ v, send }: { v: PanelView; send: Send }) {
-  const [goal, setGoal] = useState(v.task?.goal ?? ''),
-    [mode, setMode] = useState<'guide' | 'automatic'>(v.task?.mode ?? 'guide');
-  const [grantError, setGrantError] = useState('');
-  const active = v.access === 'temporary' || v.access === 'site',
-    snap = v.snapshot,
-    t = v.task;
-  const enabled = !!v.origin && v.prefs.sites.includes(v.origin);
-  async function grant() {
-    if (!v.origin) return;
-    setGrantError('');
-    try {
-      const ok = await chrome.permissions.request({ origins: [pattern(v.origin)] });
-      await send({ kind: ok ? 'siteGranted' : 'siteDenied' });
-    } catch {
-      setGrantError('Chrome could not grant access to this site.');
-    }
+function protectionText(v: PanelView) {
+  const result = v.protection;
+  if (result?.caution) return result.dismissed ? 'Warning dismissed' : 'Website warning';
+  if(result && v.prefs.protection?.automaticUrlConsent===2){
+    if(result.threatNotice) return result.threatNotice.startsWith('Checking Google')?'Checking public URL':'Limited URL coverage';
+    if(result.threat?.status==='no_match')return result.threat.scope==='root'?'Homepage checked':'Page URL checked';
+    if(result.threat)return 'Limited URL coverage';
   }
+  if (result) return sourceStatus[result.status];
+  if (!v.origin || v.access === 'unsupported_page') return 'Protection unavailable';
+  return !v.prefs.protection || v.prefs.protection.scope === 'off'
+    ? 'Auto protection off'
+    : 'No current protection result';
+}
+function Warning({ v, send }: { v: PanelView; send: Send }) {
+  const p = v.protection;
+  if (!p?.caution || p.dismissed || p.origin !== v.origin) return null;
   return (
-    <main>
-      <section aria-label="Current page">
-        <header className="row">
-          <span className="eyebrow">CURRENT PAGE</span>
-          <span className="badge" data-on={active}>
-            {accessText[v.access]}
+    <section className="site-warning" aria-label="Current website warning">
+      <strong role="status">Website warning</strong>
+      {p.threatWarnings?.map(r=><div key={r.scope+r.url}><p>{threatFinding(r)}</p><ThreatLinks r={r} /></div>)}
+      {(p.identity === 'mismatch' || p.identity === 'deceptive' || p.identity === 'unusual') && <p>{p.address}</p>}
+      {(p.status==='reports' || !p.threatWarnings?.length && p.identity==='observed') && <p>{p.outside}</p>}
+      <details>
+        <summary>View reasons</summary>
+        <p>{p.address}</p>
+        <p>{p.outside}</p>
+        {p.threatWarnings?.map(r=><small key={r.scope+r.url}>Listed by {r.source} · {new Date(r.checkedAt).toLocaleString()} · expires {new Date(r.expiresAt!).toLocaleString()}</small>)}
+        <small>Observed {new Date(p.checkedAt).toLocaleString()}</small>
+        {p.details.map((s, i) => (
+          <p key={i}>{s}</p>
+        ))}
+        {p.sources.map((s) => (
+          <p key={s.url}>
+            <a href={s.url} target="_blank" rel="noreferrer">
+              {s.label}
+            </a>
+          </p>
+        ))}
+      </details>
+      <button
+        onClick={() =>
+          void send({ kind: 'protection', action: { op: 'dismiss', revision: p.revision } })
+        }
+      >
+        Dismiss warning
+      </button>
+    </section>
+  );
+}
+
+type Suggestion = { feature: FeatureId; text: string };
+function suggestions(v: PanelView): Suggestion[] {
+  const host = v.origin ? new URL(v.origin).hostname : '';
+  const route = v.snapshot?.context.route ?? '';
+  const general: Suggestion = { feature: 'visual_guidance', text: 'Help me get somewhere' };
+  const site: Suggestion = { feature: 'site_trust', text: 'Check this website' };
+  const file: Suggestion = { feature: 'download_guidance', text: 'Find a download' };
+  const seller: Suggestion = { feature: 'seller_assessment', text: 'Check this seller' };
+  const product: Suggestion = { feature: 'product_assessment', text: 'Check this product' };
+  const compare: Suggestion = { feature: 'shopping_alternatives', text: 'Compare alternatives' };
+  if (
+    v.shopping?.seller ||
+    v.comparison?.baseline ||
+    host.endsWith('.resell.store') ||
+    ((host === 'localhost' || host === '127.0.0.1') && /shopping-lab|comparison-lab/.test(route))
+  )
+    return [seller, product, compare];
+  if (host === 'addons.mozilla.org' || v.shopping?.product) return [product, compare, site];
+  if (host === 'www.videolan.org' || host === 'www.7-zip.org') return [file, site, general];
+  if (host === 'en.wikipedia.org' && route.includes('Phishing'))
+    return [{ feature: 'visual_guidance', text: 'Find an APA citation' }, site, general];
+  if ((host === 'localhost' || host === '127.0.0.1') && route.includes('settings-lab'))
+    return [
+      { feature: 'visual_guidance', text: 'Find my username settings' },
+      site,
+      { feature: 'page_cleanup', text: 'Preview cleanup' },
+    ];
+  return [general, site, file];
+}
+
+function ActionDock({ v, send, active }: { v: PanelView; send: Send; active?: Turn }) {
+  const t = v.task;
+  const running = !!t && !['completed', 'failed', 'cancelled'].includes(t.state);
+  const canRestore = !!(
+    v.cleanup?.enabled ||
+    v.cleanup?.hidden ||
+    v.cue ||
+    v.review?.selected ||
+    t?.state === 'showing_step'
+  );
+  const outstanding = active?.state === 'routing' || active?.state === 'working';
+  if (!running && !canRestore && !outstanding) return null;
+  const control = (action: 'stop' | 'takeover' | 'pause' | 'resume') => {
+    retainKeyboardFocus();
+    if (action === 'stop' && outstanding && v.chat && (!t || t.id !== active?.taskId)) {
+      void send({ kind: 'chat', action: { op: 'cancel', conversationId: v.chat.id } });
+      return;
+    }
+    if (active && v.chat && t && t.id === active.taskId) {
+      void send({
+        kind: 'chat',
+        action: { op: 'act', conversationId: v.chat.id, turnId: active.id, action },
+      });
+      return;
+    }
+    if (t?.adaptive) void send({ kind: 'assistControl', action });
+    else if (t && action !== 'takeover') void send({ kind: action === 'stop' ? 'cancel' : action });
+    else if (outstanding && v.chat)
+      void send({ kind: 'chat', action: { op: 'cancel', conversationId: v.chat.id } });
+  };
+  return (
+    <section className="action-dock" aria-label="Action controls">
+      {running && t.state !== 'paused' && <button onClick={() => control('pause')}>Pause</button>}
+      {running && t.state === 'paused' && !active?.taskId && (
+        <button onClick={() => control('resume')}>Resume guide</button>
+      )}
+      {t?.adaptive?.authorized && <button onClick={() => control('takeover')}>Take over</button>}
+      {(running || outstanding) && (
+        <button className="stop" onClick={() => control('stop')}>
+          Stop
+        </button>
+      )}
+      {canRestore && <button onClick={() => void send({ kind: 'restore' })}>Restore page</button>}
+    </section>
+  );
+}
+function Workspace({ v: received, send, error }: { v: PanelView; send: Send; error: string }) {
+  const v = { ...received, protection: useVisibleProtection(received.protection) };
+  const [surface, setSurface] = useState<'Settings' | 'Help' | null>(null);
+  const [draft, setDraft] = useState(''),
+    [inputMessage, setInputMessage] = useState('');
+  const [editId, setEditId] = useState<string | null>(null),
+    [jump, setJump] = useState(false);
+  const textarea = useRef<HTMLTextAreaElement>(null),
+    trigger = useRef<HTMLButtonElement | null>(null);
+  const scroll = useRef<HTMLDivElement>(null),
+    pinned = useRef(true);
+  const record = v.chat,
+    turns = record?.turns ?? [],
+    active = turns.find((t) => !t.historical && t.id === record?.activeTurnId);
+  const last = turns.at(-1),
+    composing = useRef(false);
+  const currentSite = v.origin ? new URL(v.origin).hostname : 'No accessible page';
+  const canSubmit = !!draft.trim() && draft.length <= 240;
+  const isPending = active?.state === 'routing';
+  const sendChat = (action: ChatAction) => send({ kind: 'chat', action });
+  const focusComposer = () => {
+    const from = document.activeElement;
+    requestAnimationFrame(() => {
+      if (document.activeElement === from || document.activeElement === document.body)
+        textarea.current?.focus({ preventScroll: true });
+    });
+  };
+  function toggle(next: 'Settings' | 'Help', button: HTMLButtonElement) {
+    trigger.current = button;
+    if (surface === next) {
+      close();
+      return;
+    }
+    setSurface(next);
+  }
+  function close() {
+    const opener = trigger.current;
+    const closing = document.querySelector('.secondary');
+    setSurface(null);
+    requestAnimationFrame(() => {
+      const focused = document.activeElement;
+      if (
+        opener?.isConnected &&
+        (!focused || focused === document.body || closing?.contains(focused))
+      )
+        opener.focus({ preventScroll: true });
+    });
+  }
+  function shortcut(feature: FeatureId, text: string) {
+    setSurface(null);
+    setInputMessage('');
+    setEditId(null);
+    void sendChat({ op: 'shortcut', feature, text, conversationId: record?.id });
+    focusComposer();
+  }
+  async function submit(raw = draft, replyTo?: string) {
+    const text = raw.trim();
+    if (!text || raw.length > 240) {
+      setInputMessage(
+        raw.length > 240
+          ? 'Use 240 characters or fewer. Your text is still here.'
+          : 'Enter a request.',
+      );
+      focusComposer();
+      return;
+    }
+    setInputMessage('');
+    setDraft('');
+    setEditId(null);
+    setSurface(null);
+    const reply =
+      replyTo ??
+      (editId && active?.id === editId
+        ? editId
+        : active?.state === 'clarifying'
+          ? active.id
+          : undefined);
+    await sendChat({
+      op: 'submit',
+      text,
+      conversationId: record?.id,
+      ...(reply ? { replyTo: reply } : {}),
+    });
+  }
+  function clear() {
+    void sendChat({ op: 'clear', conversationId: record?.id });
+    setDraft('');
+    setEditId(null);
+    setInputMessage('');
+    setSurface(null);
+    focusComposer();
+  }
+  const previousContext = useRef(v.epoch + '|' + (v.origin ?? ''));
+  useEffect(() => {
+    const key = v.epoch + '|' + (v.origin ?? '');
+    if (previousContext.current !== key) {
+      setEditId(null);
+      setInputMessage('');
+      previousContext.current = key;
+    }
+  }, [v.origin, v.epoch]);
+  const previousLast = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const viewport = scroll.current;
+    if (!viewport) return;
+    if (!last) {
+      previousLast.current = null;
+      pinned.current = true;
+      setJump(false);
+      return;
+    }
+    const update = last.id + '|' + last.state + '|' + last.text;
+    if (previousLast.current === update) return;
+    previousLast.current = update;
+    if (!pinned.current) {
+      setJump(true);
+      return;
+    }
+    const el = viewport.querySelector<HTMLElement>('[data-turn="' + last.id + '"]');
+    if (el)
+      viewport.scrollTop +=
+        el.getBoundingClientRect().top - viewport.getBoundingClientRect().top - 10;
+  }, [last?.id, last?.state, last?.text]);
+  function latest() {
+    if (!scroll.current) return;
+    const el = scroll.current.querySelector<HTMLElement>('[data-turn="' + last?.id + '"]');
+    if (el) {
+      scroll.current.scrollTop +=
+        el.getBoundingClientRect().top - scroll.current.getBoundingClientRect().top - 10;
+      el.focus({ preventScroll: true });
+    }
+    pinned.current = true;
+    setJump(false);
+  }
+  function doAct(turn: Turn, action: CardAction) {
+    if (!record || turn.id !== record.activeTurnId || turn.historical) return;
+    retainKeyboardFocus();
+    void sendChat({ op: 'act', conversationId: record.id, turnId: turn.id, action });
+  }
+  const quick: Suggestion[] = active?.suggestions?.length
+    ? active.suggestions.map((feature) => ({ feature, text: featureNames[feature] }))
+    : suggestions(v);
+  const shortcuts = (
+    <div className="suggestions" aria-label="Suggested requests">
+      {quick.slice(0, 3).map((s) => (
+        <button
+          key={s.feature}
+          data-feature={s.feature}
+          onClick={() => shortcut(s.feature, s.text)}
+        >
+          {s.text}
+        </button>
+      ))}
+    </div>
+  );
+  return (
+    <main
+      className={'chat-shell' + (v.prefs.largeText ? ' large' : '')}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape' && surface) {
+          e.preventDefault();
+          close();
+        }
+      }}
+    >
+      <header className="chat-header">
+        <div className="chat-top">
+          <span className="brand-mark" aria-hidden="true">
+            S
           </span>
-        </header>
-        <h2>{snap?.title || v.origin || 'No accessible page'}</h2>
-        {v.origin && <p className="origin">{v.origin}</p>}
-        {!active && (
-          <p>
-            {
-              messages[
-                v.access === 'unsupported_page'
-                  ? 'unsupported_page'
-                  : v.access === 'permission_revoked'
-                    ? 'permission_revoked'
-                    : 'permission_required'
-              ]
+          <h1>SafeStep</h1>
+          <nav aria-label="Panel tools">
+            <button
+              aria-expanded={surface === 'Help'}
+              onClick={(e) => toggle('Help', e.currentTarget)}
+            >
+              Help
+            </button>
+            <button
+              aria-expanded={surface === 'Settings'}
+              onClick={(e) => toggle('Settings', e.currentTarget)}
+            >
+              Settings
+            </button>
+          </nav>
+        </div>
+        <div className="site-line">
+          <strong>{currentSite}</strong>
+          <span className={'site-status' + (v.protection?.caution ? ' caution' : '')}>
+            <i aria-hidden="true" />
+            {protectionText(v)}
+          </span>
+        </div>
+      </header>
+      <Warning v={v} send={send} />
+      <TargetProtection v={v} send={send}/>
+      {surface && (
+        <SecondarySurface
+          surface={surface}
+          v={v}
+          send={send}
+          close={close}
+          choose={shortcut}
+          clear={clear}
+        />
+      )}
+      <div className="transcript-frame" hidden={!!surface}>
+        <div
+          className="transcript"
+          id="chat-transcript"
+          ref={scroll}
+          onScroll={() => {
+            const el = scroll.current;
+            if (el) {
+              pinned.current = el.scrollHeight - el.clientHeight - el.scrollTop < 36;
+              if (pinned.current) setJump(false);
             }
+          }}
+          role="log"
+          aria-label="Conversation"
+          aria-live="off"
+          tabIndex={0}
+        >
+          {!turns.length && (
+            <div className="chat-welcome">
+              <h2>How can I help?</h2>
+              <p>Choose a task or write a request for this page.</p>
+            </div>
+          )}
+          {!turns.length && shortcuts}
+          {turns.map((turn, index) => {
+            const current = turn === active && !turn.historical && turn.origin === v.origin;
+            const previous = turns[index - 1];
+            return (
+              <div key={turn.id}>
+                {previous &&
+                  (turn.origin !== previous.origin ||
+                    (turn.documentId &&
+                      previous.documentId &&
+                      turn.documentId !== previous.documentId)) && (
+                    <p className="page-divider">
+                      Page changed ·{' '}
+                      {turn.origin ? new URL(turn.origin).hostname : 'Unavailable page'}
+                    </p>
+                  )}
+                <article
+                  data-turn={turn.id}
+                  tabIndex={turn.id === last?.id ? -1 : undefined}
+                  data-role={turn.role}
+                  data-state={turn.state}
+                  className={'turn ' + turn.role}
+                >
+                  <strong className="turn-speaker">
+                    {turn.role === 'user' ? 'You' : 'SafeStep'}
+                  </strong>
+                  {turn.historical && (
+                    <small className="history-label">Earlier on this page or task</small>
+                  )}
+                  <p className="turn-text">{turn.text}</p>
+                  {current && (
+                    <>
+                      {(turn.state === 'unsupported' || turn.state === 'unavailable') && shortcuts}
+                      {turn.state === 'awaiting_access' &&
+                        (v.access === 'temporary' || v.access === 'site' ? (
+                          <button onClick={() => doAct(turn, 'retry')}>
+                            Continue this request
+                          </button>
+                        ) : (
+                          <AccessButton v={v} send={send} />
+                        ))}
+                      {turn.state === 'clarifying' && (
+                        <div className="card-buttons">
+                          {turn.choices?.map((choice) => (
+                            <button key={choice} onClick={() => void submit(choice, turn.id)}>
+                              {choice}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <ResultCard
+                        v={v}
+                        send={send}
+                        turn={turn}
+                        act={(action) => doAct(turn, action)}
+                      />
+                      {turn.original && turn.state !== 'routing' && (
+                        <button
+                          className="edit-request"
+                          onClick={() => {
+                            setEditId(turn.id);
+                            setDraft(turn.original ?? '');
+                            focusComposer();
+                          }}
+                        >
+                          Edit request
+                        </button>
+                      )}
+                    </>
+                  )}
+                </article>
+              </div>
+            );
+          })}
+        </div>
+        {jump && (
+          <button className="jump-latest" aria-controls="chat-transcript" onClick={latest}>
+            New messages · Jump to latest
+          </button>
+        )}
+      </div>
+      <ActionDock v={v} send={send} active={active} />
+      <div className="composer-wrap">
+        {error && (
+          <p className="notice" role="alert">
+            {error}
+          </p>
+        )}
+        {!['temporary', 'site'].includes(v.access) && (
+          <p className="composer-notice">
+            {accessText[v.access]} ·{' '}
+            {messages[v.access === 'unsupported_page' ? 'unsupported_page' : 'permission_required']}
           </p>
         )}
         {v.issue && (
-          <p role="status" className="notice">
+          <p className="composer-notice" role="status">
             {messages[v.issue]}
           </p>
         )}
-      </section>
-      <Guidance v={v} send={send} goal={goal} setGoal={setGoal} />
-      {t?.guide && snap?.address && (
-        <section>
-          <AddressCard address={snap.address} title="Current website" />
-        </section>
-      )}
-      <AddressInspector v={v} send={send} />
-      <section aria-label="Manual page inspector">
-        <h2>Manual page inspector</h2>
-        <div className="modes" aria-label="Task mode">
-          {(['guide', 'automatic'] as const).map((m) => (
-            <button key={m} aria-pressed={mode === m} onClick={() => setMode(m)}>
-              {m === 'guide' ? 'Guide me' : 'Take me there'}
-            </button>
-          ))}
-        </div>
-        <p>
-          {mode === 'guide'
-            ? 'Choose a page control to outline it.'
-            : 'Automatic navigation is planned. The inspector can outline a control; it cannot click or change the page for you.'}
-        </p>
-        <button
-          disabled={!active || t?.state === 'inspecting'}
-          onClick={() => send({ kind: 'inspect', goal, mode })}
+        <form
+          aria-label="Request composer"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
         >
-          Inspect page
-        </button>
-        {t && !t.guide && (
-          <div className="progress">
-            <strong data-testid="task-state" role="status">
-              {stateText[t.state] ?? t.state}
-            </strong>
-            <small>
-              {t.steps} verified {t.steps === 1 ? 'step' : 'steps'}
-            </small>
-          </div>
-        )}
-        {t && !t.guide && !t.cancelled && (
-          <div className="actions">
-            <button
-              onClick={() => send({ kind: t.state === 'paused' ? 'resume' : 'pause' })}
-              disabled={t.state === 'paused' && !active}
-            >
-              {t.state === 'paused' ? 'Resume' : 'Pause'}
-            </button>
-            <button onClick={() => send({ kind: 'cancel' })}>Cancel task</button>
-          </div>
-        )}
-      </section>
-      {snap && !t?.guide && (
-        <section aria-label="Page controls">
-          <div className="row">
-            <h2>Page controls</h2>
-            <span className="count">{snap.controls.length}</span>
-          </div>
-          <p>Choose a control to highlight it on the page.</p>
-          {v.cue && (
-            <Reveal
-              position={v.cue.placement}
-              show={() => send({ kind: 'reveal', ref: v.cue!.ref })}
+          <label htmlFor="chat-composer">What would you like help with?</label>
+          <div className="composer-field">
+            <textarea
+              id="chat-composer"
+              rows={2}
+              value={draft}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                setInputMessage('');
+              }}
+              aria-invalid={draft.length > 240}
+              aria-describedby={draft.length >= 216 ? 'chat-length' : undefined}
+              onCompositionStart={() => {
+                composing.current = true;
+              }}
+              onCompositionEnd={() => {
+                composing.current = false;
+              }}
+              onKeyDown={(e) => {
+                if (
+                  e.key === 'Enter' &&
+                  !e.shiftKey &&
+                  !composing.current &&
+                  !e.nativeEvent.isComposing &&
+                  e.keyCode !== 229
+                ) {
+                  e.preventDefault();
+                  void submit();
+                }
+              }}
             />
+            <button className="primary send" disabled={!canSubmit} type="submit">
+              Send
+            </button>
+          </div>
+          {draft.length >= 216 && (
+            <small id="chat-length" className={draft.length > 240 ? 'input-error' : ''}>
+              {draft.length}/240
+              {draft.length > 240 ? ' · Shorten this request before sending.' : ''}
+            </small>
           )}
-          {!snap.controls.length && <p>No visible links or buttons found.</p>}
-          <ul className="controls">
-            {snap.controls.map((c) => (
-              <li key={c.ref}>
-                <button
-                  className="control"
-                  disabled={t?.state === 'paused'}
-                  aria-label={'Highlight ' + c.label}
-                  onClick={() =>
-                    send({
-                      kind: 'highlight',
-                      step: {
-                        id: crypto.randomUUID(),
-                        kind: 'highlight',
-                        ref: c.ref,
-                        expectedOrigin: snap.context.origin,
-                        requiredAccess: 'inspect',
-                        expectedOutcome: 'visible_outline',
-                        confirmation: 'user_request',
-                      },
-                    })
-                  }
-                >
-                  <span className="kind">{c.kind}</span>
-                  <b>{c.label}</b>
-                  <small>{c.destination ?? 'Destination unknown'}</small>
-                </button>
-              </li>
-            ))}
-          </ul>
-          {snap.limited && <small>Inspection limit reached; more controls may exist.</small>}
-          {snap.framesSkipped && <small>Embedded frames were not inspected.</small>}
-          <button disabled={t?.state === 'paused'} onClick={() => send({ kind: 'clear' })}>
-            Clear highlight
-          </button>
-        </section>
-      )}
-      <details>
-        <summary>Access &amp; preferences</summary>
-        <p>
-          Site access lets SafeStep connect on future visits. Automatic checks are not built yet.
-        </p>
-        {enabled ? (
-          <button onClick={() => send({ kind: 'siteRemoved' })}>Remove site access</button>
-        ) : (
-          <button disabled={!v.origin} onClick={grant}>
-            Enable on this site
-          </button>
+          {inputMessage && (
+            <p role="alert" className="input-error">
+              {inputMessage}
+            </p>
+          )}
+        </form>
+        {isPending && (
+          <p className="composer-notice">Routing this request. Sending a new one replaces it.</p>
         )}
-        {grantError && <p role="alert">{grantError}</p>}
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={v.prefs.largeText}
-            onChange={(e) => send({ kind: 'textSize', large: e.target.checked })}
-          />{' '}
-          Larger text
-        </label>
-        <div className="actions">
-          <button onClick={() => send({ kind: 'restore' })}>Restore page</button>
-          <button onClick={() => send({ kind: 'forget' })}>Clear SafeStep data</button>
-        </div>
-      </details>
-      <Sources domain={v.origin ? new URL(v.origin).hostname : null} />
-      <details>
-        <summary>
-          Product features <span className="count">9</span>
-        </summary>
-        <ol>
-          {registry.map((f) => (
-            <li key={f.id}>
-              {f.name}{' '}
-              <small>{f.status === 'implemented' ? 'Available in Stage 2' : 'Planned'}</small>
-            </li>
-          ))}
-        </ol>
-      </details>
+      </div>
+      <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {active?.text}
+      </span>
     </main>
   );
 }
 export function Panel() {
   const { view, error, command } = usePanel();
-  return (
-    <div className={view?.prefs.largeText ? 'large' : ''}>
-      <div className="mast">
-        <span className="mark" aria-hidden="true">
-          S
-        </span>
-        <div>
-          <h1>SafeStep</h1>
-          <small>Page companion</small>
-        </div>
-      </div>
-      {error && (
-        <p className="notice" role="alert">
-          {error}
-        </p>
-      )}
-      {view ? (
-        <Workspace key={view.tabId} v={view} send={command} />
-      ) : (
-        <p role="status" className="waiting">
-          {error ? 'Waiting for a tab.' : 'Connecting to this tab…'}
-        </p>
-      )}
-    </div>
-  );
+  if (!view)
+    return (
+      <main className="waiting">
+        <h1>SafeStep</h1>
+        <p role="status">{error || 'Connecting to this tab…'}</p>
+      </main>
+    );
+  return <Workspace key={view.tabId} v={view} send={command} error={error} />;
 }

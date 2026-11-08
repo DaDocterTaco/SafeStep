@@ -29,3 +29,11 @@ User Data/
 
 # Local recovery copies contain files outside the source commit.
 /.local-backups/
+
+# Local API state and provider spending ledgers
+.safestep/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal
+*.sqlite3

@@ -26,12 +26,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const from = resolve('apps/extension/.output/chrome-mv3'),
     { sha256 } = await fingerprint(from);
   const stage = process.argv[2] ?? '1';
-  if (!['1', '2'].includes(stage)) throw Error('Unknown build stage');
-  if (
-    stage === '1' &&
-    JSON.parse(await readFile(join(from, 'manifest.json'), 'utf8')).version !== '0.1.0'
-  )
-    throw Error('Stage 2 builds must use release:stage2');
+  const version = JSON.parse(await readFile(join(from, 'manifest.json'), 'utf8')).version;
+  if (!['1', '2', '3', '4', '5', '6', '7', '8'].includes(stage) || !version.startsWith('0.' + stage + '.'))
+    throw Error('Release stage must match the built manifest version.');
   const base = resolve('artifacts', 'stage-' + stage + '-' + sha256.slice(0, 12)),
     to = join(base, 'chrome-mv3');
   await mkdir(base, { recursive: true });

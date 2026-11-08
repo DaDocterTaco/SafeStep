@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { resolve } from 'node:path';
+import { openAdvanced, openArea, openDetails } from './stage7-panel.mjs';
 const exec = promisify(execFile);
 const outline = '[data-safestep-outline]';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -233,8 +234,9 @@ export async function runCases({
   await button('Highlight Second practice control').click();
   await b.waitForSelector(outline);
   const before = await state('showing_step');
-  await panel.locator('summary::-p-text(Access & preferences)').click();
-  await panel.locator('input[type=checkbox]').click();
+  await openArea(panel, 'Settings');
+  await openDetails(panel, 'Access & preferences');
+  await panel.locator('::-p-aria(Larger text[role="checkbox"])').click();
   await until(async () => (await get()).v.prefs.largeText, 'persist larger text');
   await log.detach();
   await worker.close();
@@ -250,9 +252,11 @@ export async function runCases({
     'terminated worker recovered the task and preferences, re-inspected and left it paused without replay',
   );
   await panel.reload();
+  await panel.waitForSelector('#goal');
+  await openAdvanced(panel);
   await waitText('Paused');
   assert(await panel.evaluate(() => !!document.querySelector('.large')));
-  await panel.locator('summary::-p-text(Access & preferences)').click();
+  await openDetails(panel, 'Access & preferences');
   if (process.platform !== 'win32')
     throw Error('Native permission-dialog test currently requires Windows.');
   for (const choice of ['Deny', 'Allow']) {
@@ -297,7 +301,8 @@ export async function runCases({
   assert.equal(future.v.snapshot.context.access, 'site');
   await button('Highlight Practice settings').click();
   await grantedTab.waitForSelector(outline);
-  await panel.locator('summary::-p-text(Access & preferences)').click();
+  await openArea(panel, 'Settings');
+  await openDetails(panel, 'Access & preferences');
   await button('Restore page').click();
   await state('paused');
   assert.equal(await grantedTab.$(outline), null);

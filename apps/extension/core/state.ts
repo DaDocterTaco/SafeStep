@@ -6,6 +6,12 @@ import {
   type TaskSession,
   type WorkflowId,
   type Placement,
+  type ReviewData,
+  type ShoppingKind,
+  type ShopView,
+  type CleanupView,
+  type CompareView,
+  type ProtectionView,
 } from '@safestep/contracts';
 
 export type RecordState = {
@@ -15,8 +21,22 @@ export type RecordState = {
   busy?: string;
   binding?: { documentId: string; origin: string };
   navigation?: { taskId: string; workflow: WorkflowId; from: number };
+  citationJump?: { taskId: string; documentId: string };
   inspectProfile?: WorkflowId;
   cue?: { ref: string; placement: Placement };
+  review?: ReviewData;
+  reviewStale?: boolean;
+  cancelReview?: () => void;
+  shopping?: Partial<Record<ShoppingKind, ShopView>>;
+  shopTokens?: Partial<Record<ShoppingKind, string>>;
+  cancelShopping?: () => void;
+  cleanup?: CleanupView;
+  comparison?: CompareView;
+  protection?: ProtectionView;
+  invalidateComparison?: () => void;
+  abortAssist?: () => void;
+  abortChat?: () => void;
+  chatRevision?: number;
 };
 export function blank(tabId: number): RecordState {
   return {
@@ -28,6 +48,10 @@ export function live(t: TaskSession | null) {
   return !!t && !['cancelled', 'completed', 'failed'].includes(t.state);
 }
 export function advance(s: RecordState) {
+  s.invalidateComparison?.();
+  s.abortAssist?.();
+  s.cancelShopping?.();
+  s.cancelReview?.();
   s.cp.epoch = Math.max(Date.now() * 1000, s.cp.epoch + 1);
   s.busy = undefined;
   s.snapshot = null;
