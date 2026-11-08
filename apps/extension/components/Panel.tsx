@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { messages, type ChatAction, type FeatureId, type PanelView } from '@safestep/contracts';
+import { messages, wikiCitationSubject, type ChatAction, type FeatureId, type PanelView } from '@safestep/contracts';
 import { usePanel } from './usePanel';
 import {
   featureNames,
@@ -356,6 +356,10 @@ function Workspace({ v: received, send, error }: { v: PanelView; send: Send; err
           {turns.map((turn, index) => {
             const current = turn === active && !turn.historical && turn.origin === v.origin;
             const previous = turns[index - 1];
+            const goalTurn = !!active && turns[index+1]?.id===active.id && turn.role==='user' && activeManualStep(v,active);
+            const manual = current && activeManualStep(v,turn);
+            const subject = goalTurn ? wikiCitationSubject(turn.text) : null;
+            const edit = () => { setEditId(turn.id); setDraft(turn.original ?? ''); focusComposer(); };
             return (
               <div key={turn.id}>
                 {previous &&
@@ -373,15 +377,16 @@ function Workspace({ v: received, send, error }: { v: PanelView; send: Send; err
                   tabIndex={turn.id === last?.id ? -1 : undefined}
                   data-role={turn.role}
                   data-state={turn.state}
-                  className={'turn ' + turn.role}
+                  className={'turn ' + turn.role + (goalTurn ? ' compact-goal' : '')}
                 >
-                  <strong className={current && activeManualStep(v, turn) ? 'sr-only' : 'turn-speaker'}>
+                  <strong className={manual || goalTurn ? 'sr-only' : 'turn-speaker'}>
                     {turn.role === 'user' ? 'You' : 'SafeStep'}
                   </strong>
                   {turn.historical && (
                     <small className="history-label">Earlier on this page or task</small>
                   )}
-                  {(!current || !navigationCardStatesText(v, turn)) &&
+                  {goalTurn ? <details><summary>{subject ? subject+' article and APA citation' : turn.text.replace(/[.!?]$/,'')}</summary>
+                    <p>{turn.text}</p></details> : !manual && (!current || !navigationCardStatesText(v, turn)) &&
                     <p className="turn-text">{turn.text}</p>}
                   {current && (
                     <>
@@ -408,8 +413,9 @@ function Workspace({ v: received, send, error }: { v: PanelView; send: Send; err
                         send={send}
                         turn={turn}
                         act={(action) => doAct(turn, action)}
+                        edit={edit}
                       />
-                      {turn.original && turn.state !== 'routing' && (
+                      {turn.original && !manual && turn.state !== 'routing' && (
                         <button
                           className="edit-request"
                           onClick={() => {
@@ -511,7 +517,7 @@ function Workspace({ v: received, send, error }: { v: PanelView; send: Send; err
         )}
       </div>
       <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-        {active?.text}
+          {active && activeManualStep(v,active) && v.guideTarget ? v.guideTarget.sentence : active?.text}
       </span>
     </main>
   );

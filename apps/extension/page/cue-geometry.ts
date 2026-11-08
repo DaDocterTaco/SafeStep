@@ -217,6 +217,7 @@ export function placeMarker(
   const focusEdge = target.matches(':focus-visible')
     ? (parseFloat(style.outlineWidth) || 0) + (parseFloat(style.outlineOffset) || 0)
     : 0;
+  let arrowOnly: {side:CueSide;marker:Rect;label:Rect|null} | null = null;
   for (const side of new Set(sides)) {
     const marker = markerBounds(side, box, Math.max(5, focusEdge) + 8);
     if (!vacant(marker)) continue;
@@ -237,7 +238,21 @@ export function placeMarker(
       const proposed = { left, top, right: left + tip.width, bottom: top + tip.height };
       if (vacant(proposed)) label = proposed;
     }
-    return { side, marker, label };
+    if (!tip || label) return { side, marker, label };
+    arrowOnly ??= { side, marker, label: null };
   }
-  return null;
+  // A search suggestion list can occupy the whole width below the field
+  // while its submit button occupies the right edge. Point at the corner
+  // from the adjoining clear space, without drawing over either control.
+  if (tip?.width && tip.height) {
+    for (const side of (rtl ? ['left','right'] : ['right','left']) as ('right'|'left')[]) {
+      const left = side==='right' ? box.right+9 : box.left-41;
+      const top = box.bottom+9;
+      const marker = {left,top,right:left+32,bottom:top+24};
+      const x = side==='right' ? marker.right+4 : left-tip.width-4;
+      const label = {left:x,top,right:x+tip.width,bottom:top+tip.height};
+      if (vacant(marker) && vacant(label)) return {side, marker, label, diagonal:true};
+    }
+  }
+  return arrowOnly;
 }

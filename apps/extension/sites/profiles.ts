@@ -15,8 +15,8 @@ export const workflows: Record<
     name: 'Wikipedia · APA citation',
     goal: 'Help me find the APA citation for this article.',
     steps: [
-      'Open Tools on the article.',
-      'Choose Cite this page in Tools.',
+      'Open Tools on the Phishing article.',
+      'Choose Cite this page in the Tools menu.',
       'Choose APA to jump to the citation.',
     ],
     done: 'The APA citation for Phishing is visible.',
@@ -36,6 +36,10 @@ export const workflows: Record<
   },
 };
 export const workflowIds = Object.keys(workflows) as WorkflowId[];
+export function fixedGuideCaption(workflow:WorkflowId,step:number) {
+  return (workflow === 'wikipedia_cite_apa' ? ['Open Tools','Choose Cite this page','Find APA style']
+    : ['Open VLC','Choose Download','Choose Windows'])[step-1];
+}
 export function requestsPrivateAccountChange(text:string) {
   return /^(?:please\s+)?(?:(?:help me|can you)\s+)?(?:change|reset|set|submit|save)\b[^.!?;]*\b(?:password|passcode|payment details|bank details)\b/i.test(text.trim());
 }

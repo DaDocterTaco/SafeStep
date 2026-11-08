@@ -84,7 +84,7 @@ export function installDock() {
     if (hint) {
       const value =
         active.actions.includes('show') &&
-        cue && (cue.visibility !== 'visible' || cue.placement === 'panel')
+        cue && (cue.visibility !== 'visible' || cue.placement === 'panel' || !cue.caption)
           ? cue.text
           : '';
       if (hint.textContent !== value) hint.textContent = value;
@@ -214,7 +214,7 @@ export function installDock() {
         subtree: true,
         childList: true,
         attributes: true,
-        attributeFilter: ['data-cue-placement', 'data-cue-visibility', 'open', 'aria-modal'],
+        attributeFilter: ['data-cue-placement', 'data-cue-visibility','data-cue-caption','data-cue-caption-visible', 'open', 'aria-modal'],
       });
       warningSize = new ResizeObserver(reposition);
     }

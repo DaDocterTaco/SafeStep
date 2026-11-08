@@ -195,6 +195,22 @@ export class PaidLedger {
   bounded() {
     return this.db.prepare('SELECT grant_id FROM bounded_sessions WHERE session=?').get(this.session);
   }
+  newWinSCPRetry() {
+    return this.transaction(() => {
+      const now=Date.now(), expires=Date.parse('2026-11-08T14:30:00Z');
+      const original=this.db.prepare("SELECT s.id,s.expires FROM sessions s JOIN bounded_sessions b ON b.session=s.id WHERE b.grant_id='winscp-text-test-1'").get();
+      const last=this.db.prepare('SELECT max(id) AS id FROM sessions').get().id;
+      requireCondition(now>=Date.parse('2026-11-08T14:25:29Z') && now<expires && original &&
+        original.id===last && original.expires<=now,'WinSCP retry window unavailable.');
+      const used=this.db.prepare('SELECT count(*) AS n FROM attempts WHERE session=?').get(original.id).n;
+      const total=this.db.prepare('SELECT coalesce(sum(coalesce(charged,reserved)),0) AS used FROM attempts').get().used;
+      requireCondition(used===0 && total+floor<=budget,'The original WinSCP allowance is no longer unused.');
+      const id=Number(this.db.prepare('INSERT INTO sessions(opened,expires) VALUES (?,?)').run(now,expires).lastInsertRowid);
+      this.db.prepare('INSERT INTO bounded_sessions VALUES (?,?,?,?)').run(id,'winscp-text-retry-1',8,floor);
+      this.session=id;
+      return id;
+    });
+  }
   reserve(operation, amount) {
     requireCondition(
       Number.isSafeInteger(amount) && amount >= floor && amount <= budget,

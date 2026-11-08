@@ -5,6 +5,7 @@ import {
   sameBinding,
   publicSearchQuery,
   publicStepInstruction,
+  manualStepWords,
   profileForPage,
   catalogGoal,
   type AssistBinding,
@@ -39,7 +40,10 @@ export function installAssistBridge() {
     } | null = null,
     last = 0;
   let check: ReturnType<typeof setTimeout> | undefined;
+  let manualListeners: AbortController | undefined;
   const close = () => {
+    manualListeners?.abort();
+    manualListeners = undefined;
     clearTimeout(check);
     check = undefined;
     current = null;
@@ -55,6 +59,48 @@ export function installAssistBridge() {
     note('changed');
     close();
   };
+  function showManual(local:LocalRef, el:HTMLElement) {
+    const context=current;
+    if (!context) return;
+    manualListeners?.abort();
+    const listeners = new AbortController();
+    manualListeners = listeners;
+    const profile = profileForPage(new URL(location.href)) ?? '';
+    const searching = local.fact.action === 'submit_public_search';
+    const query = profile === 'catalog' ? catalogGoal(context.goal).query : publicSearchQuery(context.goal);
+    const searchForm = () => profile === 'catalog' ? catalogSearchForm() : wikipediaForm();
+    let composing=false, ready=false, visibility:'visible'|'offscreen'|'occluded'='visible', lastState='';
+    const active = () => !listeners.signal.aborted && current===context && context.selected===local && !context.dispatched && el.isConnected;
+    const publish = () => {
+      if (!active()) return;
+      const key = ready+'/'+visibility;
+      if (key===lastState) return;
+      lastState=key;
+      void chrome.runtime.sendMessage({channel:'assist-notice',binding:context.b,event:'presentation',
+        ref:local.fact.ref,ready,visibility}).catch(()=>{});
+    };
+    const read = () => {
+      if (!active() || !searching) return;
+      const form = searchForm();
+      if (!form || form.field !== el || !query) { invalidate(); return; }
+      ready = !composing && form.field.value.trim()===query;
+    };
+    read();
+    if (!active()) return;
+    ring.show(el, manualStepWords(local.fact,profile,context.goal,ready).cue, {onVisibility(value) {visibility=value;publish();}});
+    publish();
+    if (!searching) return;
+    const refresh = () => {
+      read();
+      if (!active()) return;
+      ring.updateInstruction(manualStepWords(local.fact,profile,context.goal,ready).cue);
+      publish();
+    };
+    const opts = {signal:listeners.signal};
+    el.addEventListener('input', refresh, opts);
+    el.addEventListener('compositionstart', () => {composing=true;refresh();}, opts);
+    el.addEventListener('compositionend', () => {composing=false;refresh();}, opts);
+  }
   window.addEventListener(
     'click',
     (event) => {
@@ -243,6 +289,7 @@ export function installAssistBridge() {
         requireUniqueTarget(local, now);
         const e = validateTarget(local, c.action, now.registry, c.op === 'act' || c.scroll);
         if (c.op === 'act') {
+          manualListeners?.abort();
           if (spent.has(c.actionId) || spent.size >= 64) throw Error('Action already claimed.');
           spent.add(c.actionId);
           current.selected = local;
@@ -288,7 +335,11 @@ export function installAssistBridge() {
               current.path = location.pathname + location.hash;
             }
           }
-          ring.show(e, publicStepInstruction(local.fact));
+          if (c.manual) showManual(local,e);
+          else {
+            manualListeners?.abort();
+            ring.show(e, publicStepInstruction(local.fact));
+          }
         }
       }
       reply.ok = true;

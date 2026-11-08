@@ -36,6 +36,18 @@ function setup(t) {
   });
   return { dir, ledger };
 }
+test('unused WinSCP grant can roll forward once without adding exposure or extending the retry deadline',t=>{
+  const realNow=Date.now;let now=Date.parse('2026-11-08T12:30:00Z');
+  Date.now=()=>now;t.after(()=>{Date.now=realNow;});
+  const {ledger}=setup(t);
+  now=Date.parse('2026-11-08T13:55:00Z');ledger.newWinSCPSession();
+  now=Date.parse('2026-11-08T14:26:00Z');ledger.newWinSCPRetry();
+  assert.equal(ledger.bounded().grant_id,'winscp-text-retry-1');
+  assert.throws(()=>ledger.newWinSCPRetry());
+  ledger.reserve('assist_intent',200000);
+  assert.throws(()=>ledger.reserve('assist_step',200000));
+  now=Date.parse('2026-11-08T14:30:00Z');assert.throws(()=>ledger.reserve('assist_intent',200000));
+});
 function options(mutator = () => {}) {
   const body = {
     contents: [

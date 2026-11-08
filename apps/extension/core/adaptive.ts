@@ -29,6 +29,7 @@ import {
   profileForPage,
   isWinSCP,
   publicStepInstruction,
+  manualStepWords,
   validAssistInput,
   sameBinding,
   type AssistBinding,
@@ -59,6 +60,7 @@ type Run = {
   b?: AssistBinding;
   snap?: AssistSnapshot;
   selected?: PublicRef;
+  presentation?: {ref:string;ready:boolean;visibility:'visible'|'offscreen'|'occluded'};
   expected?: string;
   from?: string;
   arrived?: string;
@@ -131,7 +133,9 @@ export class AdaptiveNavigation {
         task.revision !== binding.revision || tab.windowId !== binding.windowId ||
         !tab.url || new URL(tab.url).origin !== task.adaptive.origin) return undefined;
     const { label, path, targetOrigin } = run.selected;
-    return { label, path, targetOrigin };
+    const state = run.presentation?.ref===run.selected.ref ? run.presentation : undefined;
+    const {sentence} = manualStepWords(run.selected,task.adaptive.profile,task.goal,state?.ready);
+    return {label,path,targetOrigin,sentence,show:state?.visibility!=='visible'||run.selected.action==='reveal_target'};
   }
   private trails = new Map<number,{catalog:string;tenant:string;expires:number}>();
   private sequence = 0;
@@ -621,6 +625,7 @@ export class AdaptiveNavigation {
       )
         throw Error('The prior action is uncertain. Take over before another activation.');
       r.selected = target;
+      r.presentation = undefined;
       r.from = snap.path;
       r.expected = target.path ?? snap.path;
       await this.checkDestination(s,r,target);
@@ -628,7 +633,7 @@ export class AdaptiveNavigation {
       if (r.visited.has(visit))
         throw Error('This same step was already verified on this page. Take over or choose a different goal.');
       try {
-        await this.send(r.b!, { op: 'cue', ref: target.ref, action: target.action, scroll: false });
+        await this.send(r.b!, { op: 'cue', ref: target.ref, action: target.action, scroll: false,manual:!a.authorized });
       } catch (e) {
         // A rejected cue cannot have activated anything. Never retry a claimed
         // activation. A fresh inspection can propose an entirely new control.
@@ -913,6 +918,7 @@ export class AdaptiveNavigation {
           ref: target.ref,
           action: target.action,
           scroll: true,
+          manual: !a.authorized,
         });
         if (target.role === 'heading' && r.selected===target && r.b===binding) await this.verifyLocal(s, r);
       });
@@ -1139,6 +1145,17 @@ export class AdaptiveNavigation {
       return;
     }
     if (!r.selected) return;
+    if (m.event==='presentation') {
+      const task=s.cp.task;
+      if (!task?.adaptive || task.id!==m.binding.taskId || task.adaptive.authorized ||
+        task.mode!=='guide' || !['planning','showing_step'].includes(task.state) ||
+        r.abort.signal.aborted || r.transition || r.waiting || r.selected.ref!==m.ref ||
+        (m.ready && r.selected.action!=='submit_public_search')) return;
+      if (r.presentation?.ref===m.ref && r.presentation.ready===m.ready && r.presentation.visibility===m.visibility) return;
+      r.presentation={ref:m.ref,ready:m.ready,visibility:m.visibility};
+      if(task.state==='showing_step') await chrome.runtime.sendMessage({channel:'cue-updated',tabId:s.cp.tabId}).catch(()=>{});
+      return;
+    }
     if (m.event === 'user_target' && !s.cp.task?.adaptive?.authorized) {
       if (['toggle_known_navigation','load_catalog_results','inspect_catalog_filter'].includes(r.selected.action)) {
         this.launch(s,r,()=>this.verifyLocal(s,r));

@@ -11,7 +11,7 @@ import {
 import { readControls, visible, metadata, controlSelector, clean, publicRoute } from './reader';
 import { Outline } from './overlay';
 import { observeAddress } from '../sites/address';
-import { profileFor, workflows } from '../sites/profiles';
+import { fixedGuideCaption, profileFor, workflows } from '../sites/profiles';
 import {
   guideVisible,
   observeWorkflow,
@@ -291,7 +291,8 @@ export function installBridge() {
           if(c.checkedDestination!==undefined && c.checkedDestination!==destination)throw new Fault('stale_document');
           if (c.kind === 'reveal')
             revealCue(t.element);
-          outline.show(t.element);
+            if (guided) outline.show(t.element,fixedGuideCaption(guided.workflow,guided.step),{});
+            else outline.show(t.element);
           reply.placement = placement(t.element);
           if (!guided) manualCue = { ref: c.ref, placement: reply.placement };
           scheduleGuide();

@@ -100,6 +100,7 @@ export async function overlay(s, type = 'outline') {
     const description = find(tree, (n) => attr(n, 'data-safestep-instruction') !== null);
     o.instruction = description ? textOf(description).trim() : '';
     o.placement = attr(host, 'data-cue-placement');
+    o.manual = attr(host,'data-manual-guide') === 'true';
   }
   for (const sh of host.shadowRoots ?? []) {
     if (type === 'protection') {
@@ -235,8 +236,8 @@ export function verifyCue(c, t) {
   assert(c.marker.tabIndex < 0);
   assert.deepEqual(t.extensionDescriptions, [c.instruction]);
   assert(
-    !c.hint?.visible || !t.label.trim(),
-    'a named site control must not carry repeated visible words',
+    !c.hint?.visible || (c.manual ? c.text === c.instruction && !overlaps(c.hint.rect,c.host.rect) : !t.label.trim()),
+    'a visible manual caption matches the description and stays outside the target',
   );
   assert(c.shadow.includes('closed'));
   assert(aligned(c.host.rect, t.rect), 'outline follows the selected target box');

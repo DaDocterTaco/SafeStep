@@ -88,6 +88,7 @@ const files = [
     ...(Number(ref.version.split('.')[2]) >= 11
       ? ['WINSCP_FINAL_PLAN.json', 'DOWNLOAD_DEMO_RESEARCH.json', 'WINSCP_AI_TEST_AUTHORIZATION.json']
       : []),
+    ...(Number(ref.version.split('.')[2]) >= 12 ? ['design/GUIDE_INSTRUCTIONS_PLAN.json','WINSCP_AI_RETRY_AUTHORIZATION.json'] : []),
     'apps/api/.env.example',
     pointerName,
     referenceName,

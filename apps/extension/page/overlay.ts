@@ -34,6 +34,7 @@ export class Outline {
       text: active.instruction,
       visibility: active.host.dataset.cueVisibility,
       placement: active.host.dataset.cuePlacement,
+      caption: active.host.dataset.cueCaptionVisible === 'true',
     };
   }
   host: HTMLDivElement | null = null;
@@ -51,6 +52,7 @@ export class Outline {
   private route = '';
   private href: string | null = null;
   private instruction = '';
+  private visibilityChanged?: (visibility:'visible'|'offscreen'|'occluded')=>void;
   private checkIdentity = true;
   private lastProbe = 0;
   private frameBounds = '';
@@ -99,7 +101,7 @@ export class Outline {
     this.checkIdentity = false;
     const visible = surface.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
       ? visibleCueRect(surface, el)
-      : { rect: null, status: 'occluded' };
+      : { rect: null, status: 'occluded' as const };
     const b = visible.rect;
     const candidate = b
       ? placeMarker(
@@ -114,6 +116,7 @@ export class Outline {
       this.geometry = key;
       host.dataset.cueVisibility = visible.status;
       host.dataset.cuePlacement = candidate?.side ?? 'panel';
+      host.dataset.cueCaptionVisible = String(!!candidate?.label);
       host.style.setProperty('visibility', b ? 'visible' : 'hidden', 'important');
       if (b) {
         for (const [name, value] of Object.entries({
@@ -128,6 +131,9 @@ export class Outline {
       if (candidate) {
         this.side = candidate.side;
         arrow.dataset.side = candidate.side;
+        arrow.style.setProperty('--turn', 'diagonal' in candidate && candidate.diagonal
+          ? (candidate.side==='right' ? '45deg':'135deg')
+          : ({right:'0deg',left:'180deg',above:'-90deg',below:'90deg'}[candidate.side]));
         const r = candidate.marker;
         Object.assign(arrow.style, {
           left: r.left + 'px',
@@ -141,11 +147,21 @@ export class Outline {
         this.tip.style.visibility = r ? 'visible' : 'hidden';
         if (r) Object.assign(this.tip.style, { left: r.left + 'px', top: r.top + 'px' });
       }
+      this.visibilityChanged?.(visible.status);
     }
     this.frame = requestAnimationFrame(this.draw);
   };
 
-  show(target: HTMLElement, instruction?: string) {
+  updateInstruction(words:string) {
+    if (!this.host || this.instruction === words) return;
+    this.instruction = words;
+    if (this.description) this.description.textContent = words;
+    if (this.tip) this.tip.textContent = words;
+    this.host.dataset.cueCaption = words;
+    this.frameBounds = this.geometry = '';
+  }
+
+  show(target: HTMLElement, instruction?: string, manual?: {onVisibility?:(value:'visible'|'offscreen'|'occluded')=>void}) {
     const surface = cueSurface(target);
     const label = publicLabel(target) || publicLabel(surface);
     const verb = target.matches('summary,[aria-expanded]')
@@ -166,8 +182,10 @@ export class Outline {
       this.route === location.href &&
       this.signature === identity(target) &&
       this.surfaceSignature === identity(surface) &&
-      this.instruction === words
+      (manual ? !!this.host.dataset.manualGuide : !this.host.dataset.manualGuide)
     ) {
+      this.visibilityChanged = manual?.onVisibility;
+      this.updateInstruction(words);
       this.invalidate();
       return;
     }
@@ -182,6 +200,8 @@ export class Outline {
     Outline.active.set(this, target);
     const host = document.createElement('div');
     host.dataset.safestepOutline = '';
+    if (manual) host.dataset.manualGuide = 'true';
+    this.visibilityChanged = manual?.onVisibility;
     host.setAttribute('aria-hidden', 'true');
     host.style.cssText =
       'all:initial!important;position:fixed!important;display:block!important;pointer-events:none!important;box-sizing:border-box!important;border:3px solid #007664!important;box-shadow:0 0 0 2px white!important;border-radius:7px!important;z-index:2147483646!important;background:transparent!important;visibility:hidden!important;';
@@ -209,15 +229,15 @@ export class Outline {
     root.append(style, arrow);
     // A visible site label already tells the person what to use. A short
     // public name may additionally disambiguate an icon if there is space.
-    if (
+    if (manual || (
       !surface.innerText?.trim() &&
       label &&
       label.length <= 45 &&
       !surface.matches('input,textarea,[contenteditable]')
-    ) {
+    )) {
       this.tip = document.createElement('span');
       this.tip.dataset.safestepHint = '';
-      this.tip.textContent = label;
+      this.tip.textContent = manual ? words : label;
       root.append(this.tip);
     }
     this.instruction = words;
@@ -281,6 +301,7 @@ export class Outline {
     this.descriptionId = '';
     this.description?.remove();
     this.description = null;
+    this.visibilityChanged = undefined;
     this.host?.remove();
     this.host = null;
     this.marker = null;

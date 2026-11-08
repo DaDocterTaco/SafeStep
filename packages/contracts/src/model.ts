@@ -175,7 +175,9 @@ export const Checkpoint = z.strictObject({
 });
 export type Checkpoint = z.infer<typeof Checkpoint>;
 export const PanelView = z.strictObject({
-  guideTarget: publicRef.pick({ label: true, path: true, targetOrigin: true }).optional(),
+  guideTarget: publicRef.pick({ label: true, path: true, targetOrigin: true }).extend({
+    sentence:z.string().min(1).max(260), show:z.boolean(),
+  }).optional(),
   chat: ChatConversation.optional(),
   protection: ProtectionView.optional(),
   comparison: CompareView.optional(),

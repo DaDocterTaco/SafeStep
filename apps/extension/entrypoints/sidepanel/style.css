@@ -498,6 +498,11 @@ button {min-height:40px}
 .manual-step [data-testid=assist-state],.manual-step [data-testid=instruction]{font:600 1.08em/1.35 Georgia,serif;margin:2px 0 7px}
 .step-destination{margin:4px 0 8px;background:transparent;border:0;padding:0;font-size:.88em}
 .step-destination p{overflow-wrap:anywhere}
+.turn.user.compact-goal{background:transparent;color:inherit;border:0;border-radius:0;border-bottom:1px solid var(--line);padding:3px 0 9px;margin:0 0 10px;max-width:100%}
+.compact-goal details,.step-more{background:transparent;border:0;padding:0}
+.compact-goal summary,.step-more summary{font-size:.88em;color:#405a51;cursor:pointer}
+.step-more{margin:14px 0 5px}.step-more button{margin:5px 5px 0 0}
+.manual-step [data-testid=assist-state],.manual-step [data-testid=instruction]{font:500 1.3em/1.32 Georgia,serif;margin:5px 0 10px}
 .page-divider {font-size:.82em;overflow-wrap:anywhere;border-top:1px solid #c9d6ca;padding-top:9px;color:#45664f}
 .history-label {font-size:.78em;color:#52605b}
 .jump-latest {flex:none;align-self:flex-end;max-width:calc(100% - 24px);margin:4px 12px;font-size:.8em;border-radius:12px;box-shadow:0 2px 6px #173b3222}

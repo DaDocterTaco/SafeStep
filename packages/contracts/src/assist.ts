@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { CleanupSignal } from './cleanup-advice.js';
 import { bindingSchema, FileProfile, publisherOrigins } from './review.js';
 import { GenerationLimit } from './explanation.js';
-import {wikiCitationPage,wikiCitationSubject,wikiSectionRequest,wikiExportGoal,wikiExportTarget,publicCatalogPath,storeListing,tenantOrigin} from './site-navigation.js';
+import {wikiCitationPage,wikiCitationSubject,wikiSectionRequest,wikiExportGoal,wikiExportTarget,publicCatalogPath,storeListing,tenantOrigin,catalogGoal} from './site-navigation.js';
 export const assistProfiles = z.enum([
   'mdn',
   'python',
@@ -387,6 +387,32 @@ export function publicStepInstruction(target: Pick<PublicRef, 'action' | 'role' 
   if (action === 'handoff_storefront') return 'Review ' + label;
   return (role === 'link' ? 'Open ' : 'Select ') + label;
 }
+// Both surfaces use the validated public target and the previously approved goal.
+// The content script sends phase changes; the user's field value stays on the page.
+export function manualStepWords(target: Pick<PublicRef,'action'|'role'|'label'|'expanded'>,
+  profile: string, goal: string, ready = false) {
+  const wiki = profile === 'wikipedia';
+  const query = wiki ? publicSearchQuery(goal) : profile === 'catalog' ? catalogGoal(goal).query : null;
+  if (target.action === 'submit_public_search' && query) {
+    if (ready) return { cue: 'Press Enter', sentence: wiki ? 'Press Enter to search for the article.' : 'Press Enter to search the marketplace.' };
+    const cue = 'Type “' + query + '”';
+    return {cue, sentence: cue + (wiki ? ' in Wikipedia’s search box.' : ' in the marketplace search box.')};
+  }
+  if (wiki && target.action === 'toggle_known_navigation' && target.label === 'Open Wikipedia search')
+    return {cue:'Open search', sentence:'Open Wikipedia’s search box.'};
+  if (wiki && target.action === 'toggle_known_navigation' && target.label === 'Tools for this article' && !target.expanded) {
+    const subject = wikiCitationSubject(goal);
+    return {cue:'Open Tools', sentence: subject ? 'Open Tools on the ' + subject + ' article.' : 'Open Tools on this article.'};
+  }
+  if (wiki && target.action === 'activate_readonly_link' && /^Cite this page$/i.test(target.label))
+    return {cue:'Choose Cite this page', sentence:'Choose Cite this page in the Tools menu.'};
+  if (target.action === 'handoff_storefront' || target.action === 'handoff_catalog' || target.action === 'identify_article_export') {
+    const cue = publicStepInstruction(target);
+    return {cue, sentence: cue + '. You choose whether to open it.'};
+  }
+  const cue = publicStepInstruction(target);
+  return {cue, sentence: /[.!?]$/.test(cue) ? cue : cue + '.'};
+}
 export const AssistSnapshot = z.strictObject({
   profile: assistProfiles,
   path,
@@ -616,7 +642,7 @@ export const AssistPage = z.strictObject({
   cmd: z.discriminatedUnion('op', [
     z.strictObject({ op: z.literal('inspect'), goal, terms: z.array(z.string().max(65)).max(3) }),
     z.strictObject({ op: z.literal('verify_snapshot') }),
-    z.strictObject({ op: z.literal('cue'), ref: id, action: actions, scroll: z.boolean() }),
+    z.strictObject({ op: z.literal('cue'), ref: id, action: actions, scroll: z.boolean(), manual: z.boolean().optional() }),
     z.strictObject({ op: z.literal('act'), ref: id, action: actions, actionId: id }),
     z.strictObject({ op: z.literal('clear') }),
   ]),
@@ -631,11 +657,14 @@ export const AssistPageReply = z.strictObject({
   error: z.string().max(120).nullable(),
 });
 export type AssistPageReply = z.infer<typeof AssistPageReply>;
-export const AssistNotice = z.strictObject({
+export const AssistNotice = z.union([z.strictObject({
   channel: z.literal('assist-notice'),
   binding: AssistBinding,
   event: z.enum(['changed', 'user_target', 'revealed']),
-});
+}), z.strictObject({
+  channel:z.literal('assist-notice'), binding:AssistBinding, event:z.literal('presentation'),
+  ref:id, ready:z.boolean(), visibility:z.enum(['visible','offscreen','occluded']),
+})]);
 export const CleanPage = z.strictObject({
   channel: z.literal('clean-page'),
   requestId: id,

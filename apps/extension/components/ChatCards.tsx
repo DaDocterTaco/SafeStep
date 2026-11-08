@@ -71,10 +71,12 @@ export function NavigationCard({
   v,
   turn,
   act,
+  edit,
 }: {
   v: PanelView;
   turn: Turn;
   act: (action: CardAction) => void;
+  edit?: () => void;
 }) {
   const task = v.task;
   const [approval, setApproval] = useState<string | null>(null);
@@ -92,6 +94,7 @@ export function NavigationCard({
   const instruction = live && guide ? v.snapshot?.guide : undefined;
   const paused = live && task.state === 'paused';
   const manual = activeManualStep(v, turn);
+  const Choices = manual ? 'details' : 'div';
   const target = manual ? v.guideTarget : undefined;
   const originForTarget = target?.targetOrigin ?? v.origin;
   const destination = target?.path && originForTarget && URL.canParse(target.path, originForTarget)
@@ -106,19 +109,19 @@ export function NavigationCard({
       {!manual && <h3>{turn.feature === 'download_guidance' ? 'Download guidance' : 'Page guidance'}</h3>}
       {live && !(manual && guide) && (
         <p data-testid="assist-state">
-          {adaptive?.status ?? task.state.replaceAll('_', ' ')}
+          {target?.sentence ?? adaptive?.status ?? task.state.replaceAll('_', ' ')}
         </p>
       )}
       {live && task.state === 'showing_step' && guide && instruction?.result === 'target' && (
         <p data-testid="instruction">{workflows[guide.workflow].steps[instruction.step - 1]}</p>
       )}
-      {live && task.state === 'showing_step' && instruction?.ref && instruction.placement && (
+      {live && task.state === 'showing_step' && instruction?.ref && instruction.placement &&
+        (instruction.placement!=='visible' || instruction.workflow==='wikipedia_cite_apa' && instruction.step===3) && (
         <Reveal position={instruction.placement} targetLabel={workflows[guide!.workflow].steps[instruction.step - 1]}
           show={() => act('reveal')} />
       )}
       {live && guide && task.state === 'completed' && <p>{workflows[guide.workflow].done}</p>}
-      {destination && <details className="step-destination"><summary>Destination</summary><p>{destination}</p></details>}
-      {live && adaptive?.intent && (adaptive.intent.constraints.length > 0 || adaptive.intent.excluded.length > 0 || adaptive.searchQuery) && (
+      {live && adaptive?.intent && !manual && (adaptive.intent.constraints.length > 0 || adaptive.intent.excluded.length > 0 || adaptive.searchQuery) && (
         <dl className="card-facts">
           {adaptive.intent.constraints.length > 0 && (
             <>
@@ -141,7 +144,10 @@ export function NavigationCard({
         </dl>
       )}
       {canChoose && (
-        <div className="card-buttons">
+        <Choices className={manual ? 'step-more' : 'card-buttons'}>
+          {manual && <summary>More</summary>}
+          {manual && edit && <button onClick={edit}>Edit request</button>}
+          {destination && <p className="step-destination">{destination}</p>}
           {live && adaptive?.status.startsWith('Confirm that') ? (
             <button onClick={() => act('confirm')}>Yes, this is it</button>
           ) : (
@@ -194,9 +200,9 @@ export function NavigationCard({
                 Take me there
               </button>
             ))}
-        </div>
+        </Choices>
       )}
-      {live && adaptive && task.state === 'showing_step' && !adaptive.authorized && (
+      {live && adaptive && task.state === 'showing_step' && !adaptive.authorized && target?.show && (
         <button data-show-step="" aria-label={v.guideTarget ? 'Show step: ' + v.guideTarget.label : 'Show step'}
           onClick={() => act('reveal')}>Show step</button>
       )}
@@ -220,11 +226,13 @@ export function ResultCard({
   turn,
   send,
   act,
+  edit,
 }: {
   v: PanelView;
   turn: Turn;
   send: Send;
   act: (action: CardAction) => void;
+  edit?:()=>void;
 }) {
   if (turn.historical || v.chat?.activeTurnId !== turn.id || turn.origin !== v.origin) return null;
   const retainedAssessment =
@@ -270,7 +278,7 @@ export function ResultCard({
     if (turn.taskId && turn.taskId !== v.task?.id) return null;
     return (
       <>
-        <NavigationCard v={v} turn={turn} act={act} />
+        <NavigationCard v={v} turn={turn} act={act} edit={edit} />
         {feature === 'download_guidance' &&
           v.review?.selection.kind === 'download' &&
           (!turn.operationId || turn.operationId === v.review.binding.operationId) && (
