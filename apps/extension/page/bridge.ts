@@ -1,3 +1,5 @@
+import { cueMutation } from './cue-owned';
+import { revealCue } from './cue-geometry';
 import {
   automaticThreatSubject,
   BridgeRequest,
@@ -115,13 +117,15 @@ export function installBridge() {
   window.addEventListener('click', scheduleGuide, true);
   window.addEventListener('scroll', scheduleGuide, true);
   window.addEventListener('resize', scheduleGuide);
-  const own = (n: Node) => n instanceof HTMLElement && n.hasAttribute('data-safestep-outline');
+  const own = (n: Node) => n instanceof HTMLElement && n.matches('[data-safestep-outline],[data-safestep-instruction],[data-safestep-dock]');
   const relevant = (n: Node) =>
     n instanceof Element &&
     (n.matches(controlSelector + ',base') || !!n.querySelector(controlSelector + ',base'));
   new MutationObserver((records) => {
     checkRoute();
     if (!snapshot) return;
+    records=records.filter(r=>!cueMutation(r));
+    if(!records.length)return;
     if (guided) {
       scheduleGuide();
       return;
@@ -286,7 +290,7 @@ export function installBridge() {
           }
           if(c.checkedDestination!==undefined && c.checkedDestination!==destination)throw new Fault('stale_document');
           if (c.kind === 'reveal')
-            t.element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
+            revealCue(t.element);
           outline.show(t.element);
           reply.placement = placement(t.element);
           if (!guided) manualCue = { ref: c.ref, placement: reply.placement };

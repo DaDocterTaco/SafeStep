@@ -54,9 +54,18 @@ function elementMetrics() {
     outline: c.outlineStyle,
     outlineColor: c.outlineColor,
     transition: c.transitionDuration,
-    animations: this.getAnimations().filter((a) => a.playState === 'running').length,
+    animations: this.getAnimations({ subtree: true }).filter((a) => a.playState === 'running')
+      .length,
     role: this.getAttribute('role'),
     live: this.getAttribute('aria-live'),
+    afterMarker:
+      this.tagName === 'BUTTON'
+        ? {
+            content: getComputedStyle(this, '::after').content,
+            width: getComputedStyle(this, '::after').width,
+            height: getComputedStyle(this, '::after').height,
+          }
+        : null,
   };
 }
 async function metrics(cdp, n) {
@@ -84,25 +93,62 @@ export async function overlay(s, type = 'outline') {
     host: await metrics(cdp, host),
     shadow: (host.shadowRoots ?? []).map((n) => n.shadowRootType),
     text: '',
+    instruction: '',
     buttons: [],
   };
+  if (type === 'outline') {
+    const description = find(tree, (n) => attr(n, 'data-safestep-instruction') !== null);
+    o.instruction = description ? textOf(description).trim() : '';
+    o.placement = attr(host, 'data-cue-placement');
+  }
   for (const sh of host.shadowRoots ?? []) {
+    if (type === 'protection') {
+      o.mode = attr(host, 'data-warning-mode');
+      o.warningStyle = attr(host,'data-warning-style');
+      o.panelPresent = attr(host, 'data-panel-present');
+      const list = find(sh, (n) => n.nodeName === 'DL'),
+        message = find(sh, (n) => attr(n, 'role') === 'alert');
+      o.hostRows = (list && (await metrics(cdp, list)).visible ? (list.children ?? []) : [])
+        .filter((n) => n.nodeName === 'DIV')
+        .map((row) => [
+          textOf(find(row, (n) => n.nodeName === 'DT')),
+          textOf(find(row, (n) => n.nodeName === 'DD')),
+        ]);
+      o.findings = (message?.children ?? []).filter((n) => n.nodeName === 'P').map(textOf);
+      const marked = find(sh, (n) => n.nodeName === 'MARK');
+      o.emphasis = marked ? textOf(marked) : null;
+    }
+    if (type === 'outline') {
+      const marker = find(sh, (n) => attr(n, 'data-safestep-marker') !== null);
+      if (marker) o.marker = await metrics(cdp, marker);
+    }
     const hint =
       find(sh, (n) => attr(n, 'data-safestep-hint') !== null) ??
-      find(
-        sh,
-        (n) =>
-          ['SPAN', 'P', 'DIV', 'ASIDE'].includes(n.nodeName) &&
-          n.children?.some((c) => c.nodeType === 3 && c.nodeValue.trim()),
-      );
-    if (type === 'outline' && hint) {
+      (type === 'dock'
+        ? find(sh, (n) => attr(n, 'class')?.split(/\s+/).includes('instruction'))
+        : null) ??
+      (type === 'dock'
+        ? find(
+            sh,
+            (n) =>
+              ['SPAN', 'P', 'DIV', 'ASIDE'].includes(n.nodeName) &&
+              n.children?.some((c) => c.nodeType === 3 && c.nodeValue.trim()),
+          )
+        : null);
+    if ((type === 'outline' || type === 'dock') && hint) {
       o.hint = await metrics(cdp, hint);
       o.text = textOf(hint).replace(/\s+/g, ' ').trim().slice(0, 200);
     }
     async function visit(n) {
-      if (n.nodeName === 'BUTTON' || n.nodeName === 'A') {
+      if (n.nodeName === 'BUTTON' || n.nodeName === 'A' || n.nodeName === 'SUMMARY') {
         const name = (attr(n, 'aria-label') || textOf(n)).trim();
-        if (name) o.buttons.push({ name, ...(await metrics(cdp, n)) });
+        if (name)
+          o.buttons.push({
+            name,
+            text: textOf(n).trim(),
+            backendNodeId: n.backendNodeId,
+            ...(await metrics(cdp, n)),
+          });
       }
       for (const c of children(n)) await visit(c);
     }
@@ -113,7 +159,30 @@ export async function overlay(s, type = 'outline') {
 export async function dockControl(s, name, activate = false) {
   const node = await until(async () => {
     const dock = await overlay(s, 'dock');
-    return dock?.buttons.find((b) => b.name === name && b.visible);
+    const button = dock?.buttons.find(
+      (b) =>
+        (b.name === name ||
+          (['Show step', 'Open SafeStep'].includes(name) && b.name.startsWith(name + ':'))) &&
+        b.visible,
+    );
+    if (!button || !activate) return button;
+    const x = Math.round(button.rect.x + button.rect.w / 2),
+      y = Math.round(button.rect.y + button.rect.h / 2);
+    const { object } = await s.tabSession.send('DOM.resolveNode', {
+      backendNodeId: button.backendNodeId,
+    });
+    try {
+      const answer = await s.tabSession.send('Runtime.callFunctionOn', {
+        objectId: object.objectId,
+        returnByValue: true,
+        arguments: [{ value: x }, { value: y }],
+        functionDeclaration:
+          'function(x,y){const root=this.getRootNode();return this.isConnected && document.elementFromPoint(x,y)===root.host && root.elementFromPoint(x,y)?.closest("button")===this;}',
+      });
+      return answer.result.value && button;
+    } finally {
+      await s.tabSession.send('Runtime.releaseObject', { objectId: object.objectId });
+    }
   }, 'visible compact control ' + name);
   if (activate)
     await s.page.mouse.click(node.rect.x + node.rect.w / 2, node.rect.y + node.rect.h / 2);
@@ -125,6 +194,7 @@ export async function currentTarget(s, selector) {
       x = b.left + b.width / 2,
       y = b.top + b.height / 2,
       front = document.elementFromPoint(x, y);
+    const ids = (e.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
     return {
       rect: { x: b.x, y: b.y, w: b.width, h: b.height },
       label: e.innerText,
@@ -133,6 +203,11 @@ export async function currentTarget(s, selector) {
       scrollY: window.scrollY,
       viewport: { w: innerWidth, h: innerHeight },
       route: location.pathname,
+      descriptionIds: ids,
+      extensionDescriptions: ids
+        .map((id) => document.getElementById(id))
+        .filter((el) => el?.hasAttribute('data-safestep-instruction'))
+        .map((el) => el.textContent),
     };
   });
 }
@@ -151,15 +226,23 @@ export function overlaps(a, b) {
   return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 }
 export function verifyCue(c, t) {
-  assert(c && c.hint?.visible && c.text, 'visible adjacent instruction');
+  assert(
+    c && c.marker?.visible && c.instruction,
+    'visible passive arrow and one accessible instruction',
+  );
   assert.equal(c.host.pointer, 'none');
-  assert.equal(c.hint.pointer, 'none');
-  assert(c.hint.tabIndex < 0);
+  assert.equal(c.marker.pointer, 'none');
+  assert(c.marker.tabIndex < 0);
+  assert.deepEqual(t.extensionDescriptions, [c.instruction]);
+  assert(
+    !c.hint?.visible || !t.label.trim(),
+    'a named site control must not carry repeated visible words',
+  );
   assert(c.shadow.includes('closed'));
   assert(aligned(c.host.rect, t.rect), 'outline follows the selected target box');
-  assert(!overlaps(c.hint.rect, t.rect), 'hint must leave the target uncovered');
+  assert(!overlaps(c.marker.rect, c.host.rect), 'arrow stays outside the ring');
   assert(t.hit, 'target center receives the hit');
-  const h = c.hint.rect,
+  const h = c.marker.rect,
     v = t.viewport;
   assert(
     h.x >= 1 && h.y >= 1 && h.x + h.w <= v.w - 1 && h.y + h.h <= v.h - 1,

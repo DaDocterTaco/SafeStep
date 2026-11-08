@@ -3,7 +3,7 @@ import type { AddressObservation, PanelView, Placement, WorkflowId } from '@safe
 import { explainAddress, flagText } from '../sites/address-copy';
 import { needsCitationChoice, resolveGoal, workflows, workflowIds } from '../sites/profiles';
 import { publisherChoice } from '../sites/publisher-goal';
-import { products } from '../sites/downloads';
+import { packageLabel } from '../sites/downloads';
 import type { FileProfile } from '@safestep/contracts';
 import type { usePanel } from './usePanel';
 type Send = ReturnType<typeof usePanel>['command'];
@@ -31,10 +31,12 @@ export function Reveal({
   position,
   show,
   keyboardFocus,
+  targetLabel,
 }: {
   position: Placement;
   show: () => void;
   keyboardFocus?: () => void;
+  targetLabel?: string;
 }) {
   if (position === 'visible') return null;
   return (
@@ -48,12 +50,14 @@ export function Reveal({
       </p>
       <button
         type="button"
+        data-show-step=""
+        aria-label={targetLabel ? 'Show step: ' + targetLabel : 'Show step'}
         onClick={(e) => {
           if (e.detail === 0 && e.currentTarget === document.activeElement) keyboardFocus?.();
           show();
         }}
       >
-        Show me
+        Show step
       </button>
     </div>
   );
@@ -187,7 +191,7 @@ export function Guidance({
             help(p);
           }}
         >
-          {products[p].name} · Windows x64 EXE
+          {packageLabel(p)}
         </button>
       ))}
       {choices && (
@@ -236,6 +240,7 @@ export function Guidance({
               {f.ref && f.placement && (
                 <Reveal
                   position={f.placement}
+                  targetLabel={workflows[g.workflow].steps[f.step - 1]}
                   keyboardFocus={focusGuide}
                   show={() => void send({ kind: 'reveal', ref: f.ref! })}
                 />

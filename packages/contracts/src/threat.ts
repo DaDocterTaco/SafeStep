@@ -93,6 +93,7 @@ export function threatPageUrl(raw: string, purpose: ThreatPurpose = 'manual'): s
     (['www.videolan.org', 'videolan.org'].includes(u.hostname) &&
       /^\/(?:vlc\/(?:download-windows\.html)?|support\/|index\.html)$/.test(u.pathname)) ||
     (u.hostname === 'www.7-zip.org' && u.pathname === '/download.html') ||
+    (u.origin === 'https://winscp.net' && /^\/eng\/downloads?\.php$/.test(u.pathname)) ||
     (u.hostname === 'www.iana.org' && u.pathname === '/help/example-domains')
   )
     return u.href;
@@ -106,6 +107,7 @@ export function threatPageUrl(raw: string, purpose: ThreatPurpose = 'manual'): s
         /^\/(?:pub\/videolan\/)?vlc\/\d+(?:\.\d+){1,3}\/win64\/vlc-\d+(?:\.\d+){1,3}-win64\.exe$/i.test(
           u.pathname,
         )) ||
+      (u.origin === 'https://winscp.net' && /^\/download\/WinSCP-\d+(?:\.\d+){1,3}-(?:Setup\.exe|Portable\.zip)\/download$/.test(u.pathname)) ||
       (u.hostname === 'github.com' &&
         /^\/ip7z\/7zip\/releases\/download\/[\d.]+\/7z\d{3,5}-x64\.exe$/i.test(u.pathname)))
   )
@@ -297,6 +299,9 @@ export function nextProtectionExpiry(v: ProtectionView, now = Date.now()) {
     .filter((t) => t > now);
   return times.length ? Math.min(...times) : null;
 }
+export function threatCategoryText(r: ThreatReply) {
+  return r.categories.map(c => c === 'MALWARE' ? 'malware' : c === 'UNWANTED_SOFTWARE' ? 'unwanted software' : 'phishing or social engineering').join(' and ');
+}
 export function threatFinding(r: ThreatReply, now = Date.now()) {
   const subject =
     (r.scope === 'root'
@@ -307,15 +312,7 @@ export function threatFinding(r: ThreatReply, now = Date.now()) {
   if (r.status === 'match') {
     if (!activeThreat(r, now))
       return 'The previous Google Web Risk match expired. Recheck for current results.';
-    const kinds = r.categories
-      .map((c) =>
-        c === 'MALWARE'
-          ? 'malware'
-          : c === 'UNWANTED_SOFTWARE'
-            ? 'unwanted software'
-            : 'phishing or social engineering',
-      )
-      .join(' and ');
+    const kinds = threatCategoryText(r);
     return (
       'Google Web Risk reported possible ' +
       kinds +

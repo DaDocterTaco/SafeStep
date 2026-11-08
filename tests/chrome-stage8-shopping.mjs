@@ -471,6 +471,7 @@ async function run(name, width) {
   let s;
   try {
     s = await nativeSession(bundle, width, width === 1440 ? 900 : 768, r.start, {
+      requireUsablePanel: true,
       attachWorker: true,
       prepare: async (p) => {
         await p.setRequestInterception(true);

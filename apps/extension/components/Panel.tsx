@@ -1,8 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { messages, threatFinding, type ChatAction, type FeatureId, type PanelView } from '@safestep/contracts';
+import { messages, type ChatAction, type FeatureId, type PanelView } from '@safestep/contracts';
 import { usePanel } from './usePanel';
 import {
   featureNames,
+  activeManualStep,
+  navigationCardStatesText,
   ResultCard,
   retainKeyboardFocus,
   type CardAction,
@@ -10,7 +12,7 @@ import {
   type Turn,
 } from './ChatCards';
 import { AccessButton, SecondarySurface } from './ChatSettings';
-import { ThreatLinks, TargetProtection, useVisibleProtection } from './Protection';
+import { CurrentSiteWarning, TargetProtection, useVisibleProtection } from './Protection';
 
 const accessText: Record<PanelView['access'], string> = {
   temporary: 'Access for this visit',
@@ -44,43 +46,6 @@ function protectionText(v: PanelView) {
     ? 'Auto protection off'
     : 'No current protection result';
 }
-function Warning({ v, send }: { v: PanelView; send: Send }) {
-  const p = v.protection;
-  if (!p?.caution || p.dismissed || p.origin !== v.origin) return null;
-  return (
-    <section className="site-warning" aria-label="Current website warning">
-      <strong role="status">Website warning</strong>
-      {p.threatWarnings?.map(r=><div key={r.scope+r.url}><p>{threatFinding(r)}</p><ThreatLinks r={r} /></div>)}
-      {(p.identity === 'mismatch' || p.identity === 'deceptive' || p.identity === 'unusual') && <p>{p.address}</p>}
-      {(p.status==='reports' || !p.threatWarnings?.length && p.identity==='observed') && <p>{p.outside}</p>}
-      <details>
-        <summary>View reasons</summary>
-        <p>{p.address}</p>
-        <p>{p.outside}</p>
-        {p.threatWarnings?.map(r=><small key={r.scope+r.url}>Listed by {r.source} · {new Date(r.checkedAt).toLocaleString()} · expires {new Date(r.expiresAt!).toLocaleString()}</small>)}
-        <small>Observed {new Date(p.checkedAt).toLocaleString()}</small>
-        {p.details.map((s, i) => (
-          <p key={i}>{s}</p>
-        ))}
-        {p.sources.map((s) => (
-          <p key={s.url}>
-            <a href={s.url} target="_blank" rel="noreferrer">
-              {s.label}
-            </a>
-          </p>
-        ))}
-      </details>
-      <button
-        onClick={() =>
-          void send({ kind: 'protection', action: { op: 'dismiss', revision: p.revision } })
-        }
-      >
-        Dismiss warning
-      </button>
-    </section>
-  );
-}
-
 type Suggestion = { feature: FeatureId; text: string };
 function suggestions(v: PanelView): Suggestion[] {
   const host = v.origin ? new URL(v.origin).hostname : '';
@@ -99,7 +64,7 @@ function suggestions(v: PanelView): Suggestion[] {
   )
     return [seller, product, compare];
   if (host === 'addons.mozilla.org' || v.shopping?.product) return [product, compare, site];
-  if (host === 'www.videolan.org' || host === 'www.7-zip.org') return [file, site, general];
+  if (host === 'www.videolan.org' || host === 'www.7-zip.org' || host === 'winscp.net') return [file, site, general];
   if (host === 'en.wikipedia.org' && route.includes('Phishing'))
     return [{ feature: 'visual_guidance', text: 'Find an APA citation' }, site, general];
   if ((host === 'localhost' || host === '127.0.0.1') && route.includes('settings-lab'))
@@ -118,8 +83,7 @@ function ActionDock({ v, send, active }: { v: PanelView; send: Send; active?: Tu
     v.cleanup?.enabled ||
     v.cleanup?.hidden ||
     v.cue ||
-    v.review?.selected ||
-    t?.state === 'showing_step'
+    v.review?.selected
   );
   const outstanding = active?.state === 'routing' || active?.state === 'working';
   if (!running && !canRestore && !outstanding) return null;
@@ -174,6 +138,7 @@ function Workspace({ v: received, send, error }: { v: PanelView; send: Send; err
   const last = turns.at(-1),
     composing = useRef(false);
   const currentSite = v.origin ? new URL(v.origin).hostname : 'No accessible page';
+  const pinnedWarning = v.protection?.caution && !v.protection.dismissed && v.protection.origin === v.origin;
   const canSubmit = !!draft.trim() && draft.length <= 240;
   const isPending = active?.state === 'routing';
   const sendChat = (action: ChatAction) => send({ kind: 'chat', action });
@@ -329,6 +294,8 @@ function Workspace({ v: received, send, error }: { v: PanelView; send: Send; err
           </span>
           <h1>SafeStep</h1>
           <nav aria-label="Panel tools">
+            {!surface && (v.access==='site'||v.access==='temporary') &&
+              <button aria-label="Tuck panel" title="Tuck panel" onClick={()=>void send({kind:'tuck',taskId:v.task?.id??null})}>Tuck</button>}
             <button
               aria-expanded={surface === 'Help'}
               onClick={(e) => toggle('Help', e.currentTarget)}
@@ -344,14 +311,14 @@ function Workspace({ v: received, send, error }: { v: PanelView; send: Send; err
           </nav>
         </div>
         <div className="site-line">
-          <strong>{currentSite}</strong>
+          {!pinnedWarning && <strong>{currentSite}</strong>}
           <span className={'site-status' + (v.protection?.caution ? ' caution' : '')}>
             <i aria-hidden="true" />
             {protectionText(v)}
           </span>
         </div>
       </header>
-      <Warning v={v} send={send} />
+      <CurrentSiteWarning v={v} send={send} />
       <TargetProtection v={v} send={send}/>
       {surface && (
         <SecondarySurface
@@ -382,8 +349,7 @@ function Workspace({ v: received, send, error }: { v: PanelView; send: Send; err
         >
           {!turns.length && (
             <div className="chat-welcome">
-              <h2>How can I help?</h2>
-              <p>Choose a task or write a request for this page.</p>
+              <h2>Help on this page</h2>
             </div>
           )}
           {!turns.length && shortcuts}
@@ -409,13 +375,14 @@ function Workspace({ v: received, send, error }: { v: PanelView; send: Send; err
                   data-state={turn.state}
                   className={'turn ' + turn.role}
                 >
-                  <strong className="turn-speaker">
+                  <strong className={current && activeManualStep(v, turn) ? 'sr-only' : 'turn-speaker'}>
                     {turn.role === 'user' ? 'You' : 'SafeStep'}
                   </strong>
                   {turn.historical && (
                     <small className="history-label">Earlier on this page or task</small>
                   )}
-                  <p className="turn-text">{turn.text}</p>
+                  {(!current || !navigationCardStatesText(v, turn)) &&
+                    <p className="turn-text">{turn.text}</p>}
                   {current && (
                     <>
                       {(turn.state === 'unsupported' || turn.state === 'unavailable') && shortcuts}
@@ -492,7 +459,7 @@ function Workspace({ v: received, send, error }: { v: PanelView; send: Send; err
             void submit();
           }}
         >
-          <label htmlFor="chat-composer">What would you like help with?</label>
+          <label htmlFor="chat-composer">Your request</label>
           <div className="composer-field">
             <textarea
               id="chat-composer"

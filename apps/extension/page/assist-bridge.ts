@@ -4,6 +4,7 @@ import {
   parseWire,
   sameBinding,
   publicSearchQuery,
+  publicStepInstruction,
   profileForPage,
   catalogGoal,
   type AssistBinding,
@@ -21,6 +22,7 @@ import {
   type LocalRef,
 } from './assist-reader';
 import { Outline } from './overlay';
+import {cueMutation} from './cue-owned';
 import { wikipediaForm, submitWikipediaSearch } from './public-search';
 import {catalogSearchForm,catalogSearchPath} from './site-capabilities';
 export function installAssistBridge() {
@@ -126,19 +128,7 @@ export function installAssistBridge() {
   const observer = new MutationObserver((records) => {
     const target = current?.selected;
     if (!current || current.dispatched) return;
-    if (
-      !records.some(
-        (r) =>
-          !(r.target instanceof Element && r.target.closest('[data-safestep-outline]')) &&
-          !(
-            r.type === 'childList' &&
-            [...r.addedNodes, ...r.removedNodes].every(
-              (n) => n instanceof HTMLElement && n.hasAttribute('data-safestep-outline'),
-            )
-          ),
-      )
-    )
-      return;
+    if (records.every(cueMutation)) return;
     if (
       target &&
       (!target.el.isConnected ||
@@ -296,9 +286,9 @@ export function installAssistBridge() {
               current.dispatched = true;
               revealSection(e);
               current.path = location.pathname + location.hash;
-            } else e.scrollIntoView({ block: 'center', behavior: 'instant' });
+            }
           }
-          ring.show(e);
+          ring.show(e, publicStepInstruction(local.fact));
         }
       }
       reply.ok = true;

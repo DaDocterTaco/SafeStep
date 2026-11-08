@@ -11,6 +11,22 @@ import { budgetedFetch, PaidLedger } from '../scripts/stage8-paid-ledger.mjs';
 const url =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent';
 const moduleURL = new URL('../scripts/stage8-paid-ledger.mjs', import.meta.url).href;
+test('bounded WinSCP grant retains the reservation floor, absolute expiry, restricted operations and single-use grant',t=>{
+  const realNow=Date.now; let now=Date.parse('2026-11-08T12:30:00Z');
+  Date.now=()=>now;t.after(()=>{Date.now=realNow;});
+  const dir=mkdtempSync(path.join(os.tmpdir(),'safestep-winscp-ledger-'));
+  const l=new PaidLedger(dir,true);t.after(()=>{l.close();rmSync(dir,{recursive:true,force:true});});
+  now=Date.parse('2026-11-08T13:55:00Z');
+  l.newWinSCPSession();
+  assert.throws(()=>l.reserve('chat_route',200000));
+  const one=l.reserve('assist_intent',200000);
+  assert.throws(()=>l.reserve('assist_step',200000));
+  l.finish(one,200,{total:125,prompt:100,output:25,thoughts:0},'ok');
+  assert.throws(()=>l.reserve('assist_step',200000));
+  assert.equal(l.status().sessions.at(-1).expires,Date.parse('2026-11-08T14:10:00Z'));
+  now=Date.parse('2026-11-08T14:10:01Z');assert.throws(()=>l.reserve('assist_intent',200000));
+  assert.throws(()=>l.newWinSCPSession());
+});
 function setup(t) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'safestep-paid-fixture-'));
   const ledger = new PaidLedger(dir, true);

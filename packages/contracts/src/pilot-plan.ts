@@ -1,5 +1,5 @@
 import {articleMatchesQuery,publicSearchQuery,samePublicTitle,type PublicRef,type AssistSnapshot,type Step} from './assist.js';
-import {catalogGoal,platformSelection,publisherBrowseGoal,returnToCatalog,wikiCitationPage,wikiCitationSubject,wikiCurrentSection,wikiExportGoal,wikiExportTarget} from './site-navigation.js';
+import {catalogGoal,platformSelection,publisherBrowseGoal,returnToCatalog,wikiCitationPage,wikiCitationSubject,wikiSectionRequest,wikiExportGoal,wikiExportTarget} from './site-navigation.js';
 export function pilotCandidates(goal:string,s:AssistSnapshot):PublicRef[]|null {
   const controls=s.controls, headings=s.headings;
   if(s.profile==='wikipedia'){
@@ -8,8 +8,10 @@ export function pilotCandidates(goal:string,s:AssistSnapshot):PublicRef[]|null {
         wikiExportTarget(new URL(c.path,'https://en.wikipedia.org'),s.path.split('#')[0]!));
       return exports.length?exports:controls.filter(c=>c.label==='Tools for this article');
     }
-    const citation=wikiCitationSubject(goal),section=wikiCurrentSection(goal);
-    if(section)return [...headings,...controls].filter(c=>samePublicTitle(c.label,section));
+    const citation=wikiCitationSubject(goal),section=wikiSectionRequest(goal);
+    if(section?.ambiguous)return [];
+    if(section && (!section.subject || articleMatchesQuery(s.path,section.subject)))
+      return [...headings,...controls].filter(c=>samePublicTitle(c.label,section.section));
     if(citation){
       if(wikiCitationPage(new URL(s.path,'https://en.wikipedia.org')))
         return [...headings,...controls].filter(c=>/^APA(?: style)?$/i.test(c.label)).sort((a,b)=>Number(b.role==='heading')-Number(a.role==='heading'));
@@ -67,7 +69,7 @@ export function pilotCandidates(goal:string,s:AssistSnapshot):PublicRef[]|null {
     if(g.category && url.searchParams.get('category')!==g.category)
       return controls.filter(c=>c.action==='apply_catalog_filter' && c.label.toLowerCase()===g.category);
     if(g.query && url.searchParams.get('q')!==g.query)return controls.filter(c=>c.action==='submit_public_search');
-    if(g.ceiling===25 && url.searchParams.get('price')!=='under-25'){
+    if(g.under25 && url.searchParams.get('price')!=='under-25'){
       const choices=controls.filter(c=>c.action==='apply_catalog_filter' && c.label==='Under $25');
       return choices.length?choices:controls.filter(c=>c.action==='toggle_known_navigation' && c.label==='Price');
     }
@@ -97,7 +99,8 @@ export function catalogReadyForPlan(goal:string,s:AssistSnapshot){
     const empty=s.headings.some(h=>/^nothing (?:for|here yet)|^no (?:matching )?results/i.test(h.label));
     return queryHeading && (!g.wantsOffer || empty || s.controls.some(c=>c.action==='handoff_storefront'));
   }
-  if(g.category && url.searchParams.get('category')===g.category && (!g.sort||url.searchParams.get('sort')===g.sort))
+  if(g.category && url.searchParams.get('category')===g.category &&
+      (!g.under25||url.searchParams.get('price')==='under-25') && (!g.sort||url.searchParams.get('sort')===g.sort))
     return s.headings.some(h=>/^nothing (?:for|here yet)|^no (?:matching )?results/i.test(h.label));
   return !!pilotCandidates(goal,s)?.length;
 }

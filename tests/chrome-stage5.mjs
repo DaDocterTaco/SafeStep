@@ -500,7 +500,11 @@ async function journey(s, r, text, auto, withModel = true) {
       }
       previous = t.revision;
       const tag = await el.evaluate((e) => e.tagName);
-      if (/^H[1-4]$/.test(tag)) await btn(s.panel, 'Show this target').click();
+      if (/^H[1-4]$/.test(tag)) {
+        const reveal = await s.panel.$('button[data-show-step]');
+        if (reveal) await reveal.click();
+        else await btn(s.panel, 'Show this target').click();
+      }
       else {
         await el.click();
         clicks++;

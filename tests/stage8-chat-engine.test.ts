@@ -66,6 +66,64 @@ function fixture(t: TestContext, url = 'https://en.wikipedia.org/wiki/Phishing')
   };
 }
 
+test('a late document probe for the paused catalog guide cannot retire the new storefront seller turn', async t => {
+  const { s,tab,page,chat,current,sent }=fixture(t,'https://nibdrawer.resell.store/lamy-2000-makrolon');
+  s.cp.epoch=2;
+  const c=s.cp.chat=emptyConversation();
+  const old=makeTurn('assistant','Open the outlined listing.','https://resell.store',1,'prior-catalog-document');
+  old.feature='visual_guidance';old.taskId=crypto.randomUUID();old.state='paused';
+  c.turns.push(old);c.activeTurnId=old.id;
+  s.cp.task={id:old.taskId,tabId:tab.id!,goal:'Open a fountain pen',mode:'guide',state:'paused',epoch:2,documentId:null,revision:null,lastVerified:null,steps:2,cancelled:false};
+  const began=Promise.withResolvers<void>(),finish=Promise.withResolvers<void>();
+  let first=true;
+  const execute=chrome.scripting.executeScript;
+  t.mock.method(chrome.scripting,'executeScript',async(args:Parameters<typeof execute>[0])=>{
+    if(first){first=false;began.resolve();await finish.promise;}
+    return execute(args);
+  });
+  const checkingPreviousDocument=chat.refresh(s,tab);
+  await began.promise;
+  await chat.operate(s,tab,{op:'shortcut',feature:'seller_assessment',text:'Check this seller.'});
+  const next=current();
+  assert.equal(next.feature,'seller_assessment');assert.equal(next.documentId,page.doc);
+  assert(sent.some(x=>x.kind==='shop'));
+  finish.resolve();await checkingPreviousDocument;
+  assert.equal(c.activeTurnId,next.id);assert.equal(next.historical,false);
+});
+test('an unchanged paused guide still retires when its own recorded document has been replaced', async t=>{
+  const {s,tab,chat}=fixture(t,'https://resell.store/discover');
+  s.cp.epoch=2;
+  const c=s.cp.chat=emptyConversation();
+  const old=makeTurn('assistant','Use the highlighted result.','https://resell.store',1,'replaced-document');
+  old.feature='visual_guidance';old.taskId=crypto.randomUUID();old.state='paused';
+  c.turns.push(old);c.activeTurnId=old.id;
+  s.cp.task={id:old.taskId,tabId:tab.id!,goal:'Open a listing',mode:'guide',state:'paused',epoch:2,documentId:null,revision:null,lastVerified:null,steps:2,cancelled:false};
+  await chat.refresh(s,tab);assert.equal(c.activeTurnId,null);assert.equal(old.historical,true);
+});
+for(const [action,verified,preserve] of [['reveal',true,true],['reveal',false,false],['guide',true,false]] as const){
+  test('a pending '+action+' at Wikipedia article handoff (verified='+verified+')',async t=>{
+    const url='https://en.wikipedia.org/w/index.php?title=Special:Search&search=Phishing';
+    const {s,tab,chat,page,sent}=fixture(t,url),c=s.cp.chat=emptyConversation();
+    const goal='Find the Phishing article and its APA citation.';
+    const turn=makeTurn('assistant','Open Phishing','https://en.wikipedia.org',s.cp.epoch,page.doc);
+    Object.assign(turn,{feature:'visual_guidance',taskId:crypto.randomUUID(),state:'awaiting_user',scope:page.scope,version:1});
+    c.turns.push(turn);c.activeTurnId=turn.id;
+    s.cp.task={id:turn.taskId!,tabId:tab.id!,goal,mode:'guide',state:'showing_step',epoch:s.cp.epoch,
+      documentId:page.doc,revision:crypto.randomUUID(),lastVerified:'inspected',steps:1,cancelled:false};
+    const began=Promise.withResolvers<void>(),done=Promise.withResolvers<void>(),execute=chrome.scripting.executeScript;
+    t.mock.method(chrome.scripting,'executeScript',async(args:Parameters<typeof execute>[0])=>{
+      began.resolve();await done.promise;return execute(args);
+    });
+    const pending=chat.operate(s,tab,{op:'act',conversationId:c.id,turnId:turn.id,action});
+    await began.promise;
+    tab.url='https://en.wikipedia.org/wiki/Phishing?wprov=srpw1_0';
+    await chat.changed(s,true,verified);
+    done.resolve();await assert.rejects(pending);
+    assert.equal(c.activeTurnId,preserve?turn.id:null);assert.equal(turn.historical,!preserve);
+    assert.equal(turn.documentId,page.doc);assert.equal(sent.length,0);
+  });
+}
+
 test('Conversation history is bounded per tab and only same-document, same-subject, relevant text can be sent', () => {
   const c = emptyConversation();
   for (let i = 0; i < 72; i++) {

@@ -1,5 +1,5 @@
-import {catalogGoal,catalogKinds,catalogOrigin,catalogPrices,catalogSorts,platformSelection,publicCatalogPath,publisherBrowseGoal,
-  publicSearchQuery,publicPath,returnToCatalog,safeLabel,samePublicTitle,storeListing,tenantOrigin,wikiCitationPage,wikiCitationSubject,wikiCurrentSection,wikiExportGoal,wikiExportTarget,type PublicRef} from '@safestep/contracts';
+import {articleMatchesQuery,catalogGoal,catalogKinds,catalogOrigin,catalogPrices,catalogSorts,platformSelection,publicCatalogPath,publisherBrowseGoal,
+  publicSearchQuery,publicPath,returnToCatalog,safeLabel,samePublicTitle,storeListing,tenantOrigin,wikiCitationPage,wikiCitationSubject,wikiSectionRequest,wikiExportGoal,wikiExportTarget,type PublicRef} from '@safestep/contracts';
 
 type Candidate=Omit<PublicRef,'ref'|'visible'>;
 const shown=(el:HTMLElement)=>el.isConnected && el.checkVisibility({checkOpacity:true,checkVisibilityCSS:true}) &&
@@ -93,11 +93,11 @@ export function pilotControl(el:HTMLElement,goal:string): Candidate|null {
     if(triggers.length!==1)return null;
     const sort=catalogSorts[label as keyof typeof catalogSorts];
     if(sort && request.sort===sort && plain(triggers[0]!) in catalogSorts)path=nextCatalogFilter('sort',sort);
-    if(label==='Under $25' && request.ceiling===25 && plain(triggers[0]!)==='Price')path=nextCatalogFilter('price',catalogPrices[label]!);
+    if(label==='Under $25' && request.under25 && plain(triggers[0]!)==='Price')path=nextCatalogFilter('price',catalogPrices[label]!);
   }
   if(path)return {label,role:'button',action:'apply_catalog_filter',path};
   if(menuTrigger(el)&&((label in catalogSorts && request.sort && catalogSorts[label as keyof typeof catalogSorts]!==request.sort) ||
-    (label==='Price'&&request.ceiling===25))) return {label,role:'button',action:'toggle_known_navigation',path:null,expanded:el.getAttribute('aria-expanded')==='true'};
+    (label==='Price'&&request.under25))) return {label,role:'button',action:'toggle_known_navigation',path:null,expanded:el.getAttribute('aria-expanded')==='true'};
   return null;
 }
 export function catalogReadings(goal:string){
@@ -136,8 +136,11 @@ export function pilotCompletion(goal:string,u:URL, visible:(e:HTMLElement)=>bool
       const article=[...document.querySelectorAll<HTMLElement>('main h2')].find(e=>e.textContent?.includes('"'+page.replaceAll('_',' ')+'"'));
       if(article && section && visible(section) && /^APA style$/i.test(plain(section)))return page+' · APA style';
     }
-    const section=wikiCurrentSection(goal);
-    if(section && u.pathname.startsWith('/wiki/') && u.hash && matchingHeading('main h2, main h3',section)){
+    const request=wikiSectionRequest(goal),section=request?.section;
+    const title=document.querySelector<HTMLElement>('main h1');
+    const matchingArticle=request && !request.ambiguous && (!request.subject ||
+      (articleMatchesQuery(u.pathname,request.subject) && title && shown(title) && samePublicTitle(plain(title),request.subject)));
+    if(section && matchingArticle && u.pathname.startsWith('/wiki/') && u.hash && matchingHeading('main h2, main h3',section)){
       const anchor=document.getElementById(decodeURIComponent(u.hash.slice(1)));
       const heading=anchor?.matches('h2,h3')? anchor:anchor?.querySelector('h2,h3');
       if(heading instanceof HTMLElement && samePublicTitle(plain(heading),section) && visible(heading))
@@ -175,21 +178,30 @@ export function pilotCompletion(goal:string,u:URL, visible:(e:HTMLElement)=>bool
   if(u.origin===catalogOrigin && u.pathname==='/discover' && publicCatalogPath(u)){
     const goalData=catalogGoal(goal),h=document.querySelector<HTMLElement>('main h1');
     if(goalData.unknownBudget||goalData.more||goalData.unavailableControl)return null;
-    if(goalData.query && !goalData.wantsOffer && u.searchParams.get('q')===goalData.query &&
-      h && visible(h) && h.innerText.includes(goalData.query))return h.innerText.slice(0,120);
-    if(goalData.category && u.searchParams.get('category')===goalData.category && (!goalData.sort||u.searchParams.get('sort')===goalData.sort) &&
-      [...document.querySelectorAll<HTMLElement>('[role=group][aria-label=Categories] button[aria-pressed=true]')].some(b=>plain(b).toLowerCase()===goalData.category) &&
+    const search=!!goalData.query && !goalData.wantsOffer && u.searchParams.get('q')===goalData.query &&
+      h && visible(h) && samePublicTitle(h.innerText,'Results for '+goalData.query);
+    const category=!!goalData.category && u.searchParams.get('category')===goalData.category &&
+      [...document.querySelectorAll<HTMLElement>('[role=group][aria-label=Categories] button[aria-pressed=true]')].some(b=>plain(b).toLowerCase()===goalData.category);
+    if(search && goalData.ceiling===null && !goalData.sort)return h!.innerText.slice(0,120);
+    if((search||category) && (!goalData.sort||u.searchParams.get('sort')===goalData.sort) &&
+      (!goalData.under25 || (u.searchParams.get('price')==='under-25' &&
+        [...document.querySelectorAll<HTMLButtonElement>('button[aria-haspopup=menu]')].some(b=>shown(b)&&plain(b)==='Under $25'))) &&
       (!goalData.sort||[...document.querySelectorAll<HTMLButtonElement>('button[aria-haspopup=menu]')].some(b=>shown(b)&&catalogSorts[plain(b) as keyof typeof catalogSorts]===goalData.sort))){
       const items=[...document.querySelectorAll<HTMLAnchorElement>('main a[href]')].slice(0,256).map(catalogItem).filter(x=>!!x);
       if(goalData.sort && items.some((x,i)=>i>0 && (goalData.sort==='price-asc'?items[i-1]!.amount>x.amount:items[i-1]!.amount<x.amount)))return null;
+      const explicitEmpty=[...document.querySelectorAll<HTMLElement>('main h2, main h3')].some(h=>shown(h)&&/^nothing (?:for|here yet)|^no (?:matching )?(?:results|items|things)/i.test(plain(h)));
+      const subject=goalData.category??goalData.query;
       if(goalData.ceiling!==null){
         const hits=items.filter(x=>goalData.inclusive?x.amount<=goalData.ceiling!:x.amount<goalData.ceiling!);
-        if(!hits.length)return null;
-        return (goalData.category+' · '+(goalData.sort?'sorted by price · ':'')+'under USD '+goalData.ceiling+': '+hits[0]!.name+' ('+hits[0]!.price+' item price; observed subset)').slice(0,160);
+        const constraint=(goalData.inclusive?'at most USD ':'under USD ')+goalData.ceiling;
+        if(!hits.length){
+          if(!items.length && explicitEmpty)return subject+' · '+constraint+' · 0 observed listings';
+          return items.length?subject+' · '+constraint+' · no matching item price in '+items.length+' displayed listings':null;
+        }
+        return (subject+' · '+(goalData.sort?'sorted by price · ':'')+constraint+': '+hits[0]!.name+' ('+hits[0]!.price+' item price; observed subset)').slice(0,160);
       }
-      const explicitEmpty=[...document.querySelectorAll<HTMLElement>('main h2, main h3')].some(h=>shown(h)&&/^nothing (?:for|here yet)|^no (?:matching )?(?:results|items|things)/i.test(plain(h)));
       if(!items.length&&!explicitEmpty)return null;
-      return (goalData.category+' · '+(goalData.sort??'category selected')+' · '+items.length+' observed listings').slice(0,160);
+      return (subject+' · '+(goalData.sort??'category selected')+' · '+items.length+' observed listings').slice(0,160);
     }
   }
   return null;

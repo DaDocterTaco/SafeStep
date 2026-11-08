@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { FeatureId } from './features.js';
-import { FileProfile } from './review.js';
+import { FileProfile, isWinSCP } from './review.js';
+import { winSCPRequest } from './winscp.js';
 import { CompareMode } from './comparison.js';
 import { publicPath, profileForPage, shareablePathShape } from './assist.js';
 import { isPublicComparisonText } from './comparison-privacy.js';
@@ -197,6 +198,9 @@ export function validatedChatRoute(raw: unknown, input: ChatRouteInput): ChatRou
   // Package picks must be supported by user-supplied product terms. A picked
   // profile never provides permission for a file, platform, or architecture.
   if (result.feature === 'download_guidance' && result.slots.profile) {
+    if (isWinSCP(result.slots.profile)) {
+      if (input.site.origin !== 'https://winscp.net' || winSCPRequest(input.text) !== result.slots.profile) return null;
+    } else {
     const product =
       result.slots.profile === 'vlc_windows_x64' ? /\b(?:vlc|videolan)\b/i : /\b7[ -]?zip\b/i;
     const words = input.text.toLowerCase();
@@ -211,6 +215,7 @@ export function validatedChatRoute(raw: unknown, input: ChatRouteInput): ChatRou
       )
     )
       return null;
+    }
   }
   if (result.feature === 'url_identity' && result.slots.expected && !chatExpectsAmazon(input.text)) {
     const previous = [...input.history].reverse().find((t) => t.role === 'user' && t.text !== input.text);

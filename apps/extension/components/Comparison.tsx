@@ -734,7 +734,9 @@ export function Comparison({ v, send, original, initialMode }: {
     [selected, setSelected] = useState(false),
     [omitted, setOmitted] = useState<string[]>([]),
     [url, setURL] = useState('');
+  const submitting = useRef<symbol | null>(null);
   useEffect(() => {
+    submitting.current = null;
     setDraft(null);
     setEditing(false);
     setSelected(false);
@@ -772,14 +774,24 @@ export function Comparison({ v, send, original, initialMode }: {
   if (c && !editing && showEditor && original) {
     initialSettings = comparisonFromWords({...c.settings,mode:initialMode ?? c.settings.mode}, original);
   }
-  function commit(op: 'find' | 'interpret') {
-    if (!c || !initialSettings) return;
+  async function commit(op: 'find' | 'interpret') {
+    if (!c || !initialSettings || submitting.current) return;
     const settings = draft ?? initialSettings;
+    const request = Symbol();
+    const trigger = document.activeElement;
+    submitting.current = request;
+    const accepted = await send({
+      kind: 'compare',
+      action: { op, settings, session: c.id, version: c.version },
+    });
+    if (submitting.current !== request) return;
+    submitting.current = null;
+    // A stale or background submission must leave reviewed terms available for a deliberate retry.
+    if (!accepted) return;
+    setDraft(current => current === draft ? null : current);
     setEditing(false);
-    setDraft(null);
     setSelected(false);
-    focus();
-    submit({ op, settings, session: c.id, version: c.version });
+    if (document.activeElement === trigger || document.activeElement === document.body) focus();
   }
   return (
     <section aria-label="Compare alternatives" className="comparison" data-shopping-evidence=""

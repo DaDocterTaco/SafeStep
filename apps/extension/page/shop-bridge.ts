@@ -1,3 +1,4 @@
+import { cueMutation } from './cue-owned';
 import {
   parseWire,
   ShopPageRequest,
@@ -51,13 +52,15 @@ export function installShopBridge() {
     for (const [k, s] of slots) if (!valid(k, s)) close(k, true);
   };
   new MutationObserver((records) => {
+    records=records.filter(r=>!cueMutation(r));
+    if(!records.length)return;
     for (const k of [...slots.keys()])
       if (
         records.some((r) => {
           const t = r.target instanceof Element ? r.target : r.target.parentElement;
           return (
             t?.closest('#shop-listing,#' + k + '-section') &&
-            !t.closest('[data-safestep-outline],input,textarea,script,style,[contenteditable]')
+            !t.closest('[data-safestep-outline],[data-safestep-instruction],[data-safestep-dock],input,textarea,script,style,[contenteditable]')
           );
         })
       )
@@ -68,7 +71,7 @@ export function installShopBridge() {
       !records.some((r) => {
         const t = r.target instanceof Element ? r.target : r.target.parentElement;
         return (
-          t && !t.closest('[data-safestep-outline],input,textarea,script,style,[contenteditable]')
+          t && !t.closest('[data-safestep-outline],[data-safestep-instruction],[data-safestep-dock],input,textarea,script,style,[contenteditable]')
         );
       })
     )
@@ -136,7 +139,7 @@ export function installShopBridge() {
             if (c.ref !== s.data.target || !s.element) throw Error();
             s.element.scrollIntoView({ block: 'center', behavior: 'instant' });
             if (!valid(k, s)) throw Error();
-            outline.show(s.element);
+            outline.show(s.element,k==='seller'?'Review the seller feedback link':'Review the product evidence link');
             painted = k;
           }
           data = s.data;

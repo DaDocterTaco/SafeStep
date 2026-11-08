@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { AddressObservation, GuideFacts, Placement, Progress } from './guidance.js';
 import { bindingSchema, ReviewData } from './review.js';
 import { ShopView } from './shopping.js';
-import { AdaptiveState, CleanupView } from './assist.js';
+import { AdaptiveState, CleanupView, publicRef } from './assist.js';
 import { ChatConversation } from './conversation.js';
 
 export { FeatureId, Features } from './features.js';
@@ -15,6 +15,7 @@ export const Errors = z.enum([
   'unsupported_page',
   'stale_document',
   'element_missing',
+  'dock_unavailable',
   'provider_not_configured',
   'provider_unavailable',
   'timeout',
@@ -37,6 +38,7 @@ export const messages: Record<ErrorCode, string> = {
   cancelled: 'The task was cancelled.',
   invalid_message: 'The request or reply was not valid.',
   blocked_by_policy: 'This action is not available in the current state.',
+  dock_unavailable: 'There is no room for SafeStep’s compact controls on this page. Continue in the panel.',
 };
 export class Fault extends Error {
   constructor(readonly code: ErrorCode) {
@@ -173,6 +175,7 @@ export const Checkpoint = z.strictObject({
 });
 export type Checkpoint = z.infer<typeof Checkpoint>;
 export const PanelView = z.strictObject({
+  guideTarget: publicRef.pick({ label: true, path: true, targetOrigin: true }).optional(),
   chat: ChatConversation.optional(),
   protection: ProtectionView.optional(),
   comparison: CompareView.optional(),

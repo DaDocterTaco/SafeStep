@@ -9,7 +9,7 @@ export async function nativeSession(
   width,
   height,
   start,
-  { prepare, attachWorker = false, apiHost = process.env.SAFESTEP_TEST_API_HOST, install, userDataDir } = {},
+  { prepare, attachWorker = false, apiHost = process.env.SAFESTEP_TEST_API_HOST, install, userDataDir, requireUsablePanel = false } = {},
 ) {
   if (apiHost && !/^127\.0\.0\.[2-9]$/.test(apiHost)) throw Error('Test API must use isolated loopback.');
   const browser = await puppeteer.launch({
@@ -30,7 +30,7 @@ export async function nativeSession(
       ...(apiHost ? ['--host-resolver-rules=MAP 127.0.0.1:4317 '+apiHost+':4317'] : []),
       '--disable-background-networking',
       '--force-device-scale-factor=1',
-      install ? '--window-position=30,40' : '--window-position=-1800,40',
+      install || requireUsablePanel ? '--window-position=30,40' : '--window-position=-1800,40',
     ],
   });
   try {
@@ -77,6 +77,10 @@ export async function nativeSession(
     ).asPage();
     await panel.waitForSelector('#goal, textarea[aria-label="What would you like help with?"], textarea#chat-composer');
     await page.waitForFunction((w) => innerWidth < w, { timeout: 3500 }, width).catch(() => {});
+    if (requireUsablePanel) {
+      await panel.waitForFunction(h=>Math.abs(innerHeight-h)<24 && innerWidth>=300,{timeout:6000},height);
+      await page.waitForFunction(({w,h})=>innerWidth<w-250 && Math.abs(innerHeight-h)<24,{timeout:6000},{w:width,h:height});
+    }
     const contexts = await panel.evaluate(() =>
       chrome.runtime.getContexts({ contextTypes: ['SIDE_PANEL'] }),
     );

@@ -4,6 +4,7 @@ import { installReviewBridge } from '../page/review-bridge';
 import { installShopBridge } from '../page/shop-bridge';
 import {installAssistBridge} from '../page/assist-bridge';
 import {installCleanup} from '../page/cleanup';
+import {installDock} from '../page/dock';
 
 export default defineContentScript({
   // WXT promotes declared runtime matches to required hosts. Supply real matches only after a site grant.
@@ -18,5 +19,6 @@ export default defineContentScript({
     installShopBridge();
     installAssistBridge();
     installCleanup();
+    installDock();
   },
 });

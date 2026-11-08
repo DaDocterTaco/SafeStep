@@ -124,6 +124,16 @@ export class PaidLedger {
       // Upgrade an already-active journal in place. Older servers may still
       // settle a receipt using the original column list during this transition.
       this.transaction(() => {
+        this.db.exec(`CREATE TABLE IF NOT EXISTS bounded_sessions (
+          session INTEGER PRIMARY KEY REFERENCES sessions(id), grant_id TEXT UNIQUE NOT NULL,
+          max_calls INTEGER NOT NULL, max_exposure INTEGER NOT NULL) STRICT;
+          CREATE TRIGGER IF NOT EXISTS enforce_bounded_session BEFORE INSERT ON attempts
+          WHEN EXISTS (SELECT 1 FROM bounded_sessions b JOIN sessions s ON s.id=b.session
+            WHERE b.session=NEW.session AND (NEW.at<s.opened OR NEW.at>=s.expires OR
+              NEW.operation NOT IN ('assist_intent','assist_step') OR
+              (SELECT count(*) FROM attempts WHERE session=b.session)>=b.max_calls OR
+              NEW.reserved+(SELECT coalesce(sum(coalesce(charged,reserved)),0) FROM attempts WHERE session=b.session)>b.max_exposure))
+          BEGIN SELECT RAISE(ABORT,'Bounded WinSCP session allowance unavailable'); END;`);
         if (
           !this.db
             .prepare('PRAGMA table_info(attempts)')
@@ -168,6 +178,22 @@ export class PaidLedger {
       );
       return this.session;
     });
+  }
+  newWinSCPSession() {
+    return this.transaction(() => {
+      const now = Date.now(), expires = Date.parse('2026-11-08T14:10:00Z');
+      const last = this.db.prepare('SELECT expires FROM sessions ORDER BY id DESC LIMIT 1').get();
+      const exposure = this.db.prepare('SELECT coalesce(sum(coalesce(charged,reserved)),0) AS used FROM attempts').get().used;
+      requireCondition(now >= Date.parse('2026-11-08T13:40:11Z') && now < expires && last.expires <= now &&
+        exposure + floor <= budget, 'The approved WinSCP window or remaining funds are unavailable.');
+      const id = Number(this.db.prepare('INSERT INTO sessions(opened,expires) VALUES (?,?)').run(now,expires).lastInsertRowid);
+      this.db.prepare('INSERT INTO bounded_sessions VALUES (?,?,?,?)').run(id,'winscp-text-test-1',8,200000);
+      this.session = id;
+      return id;
+    });
+  }
+  bounded() {
+    return this.db.prepare('SELECT grant_id FROM bounded_sessions WHERE session=?').get(this.session);
   }
   reserve(operation, amount) {
     requireCondition(
@@ -442,6 +468,11 @@ export function budgetedFetch(ledger, transport, pinnedGeminiKey) {
     );
     const body = await readBounded(request.body, requestLimit);
     const a = requestCost(new TextDecoder('utf-8', { fatal: true }).decode(body));
+    if (ledger.bounded?.()) {
+      const message = JSON.parse(JSON.parse(new TextDecoder().decode(body)).contents[0].parts[0].text);
+      requireCondition(['assist_intent','assist_step'].includes(a.operation) &&
+        JSON.stringify(message).toLowerCase().includes('winscp'), 'Only the approved WinSCP navigation operation is eligible.');
+    }
     request.signal.throwIfAborted();
     const id = ledger.reserve(a.operation, a.amount);
     let response, bytes;
@@ -507,12 +538,13 @@ const self = fileURLToPath(import.meta.url);
 if (process.argv[1] && path.resolve(process.argv[1]) === self) {
   const command = process.argv[2];
   requireCondition(
-    ['init', 'status', 'report', 'new-session'].includes(command),
+    ['init', 'status', 'report', 'new-session', 'winscp-session'].includes(command),
     'Use init, status, report or new-session.',
   );
   const ledger = new PaidLedger(directory, command === 'init');
   try {
     if (command === 'new-session') ledger.newSession();
+    if (command === 'winscp-session') ledger.newWinSCPSession();
     console.log(JSON.stringify(command === 'report' ? ledger.report() : ledger.status(), null, 2));
   } finally {
     ledger.close();

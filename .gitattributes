@@ -1,4 +1,4 @@
-# Preserve the release source bytes in standard Windows and Unix checkouts.
+# Preserve the byte-exact source on Windows and Unix.
 * text=auto eol=lf
-# This historical Chrome driver contains mixed newlines in the frozen archive.
-tests/chrome-three-site-shopping-cleanup.mjs -text whitespace=trailing-space,space-before-tab,cr-at-eol
+apps/extension/components/Panel.tsx -text whitespace=trailing-space,space-before-tab,cr-at-eol
+packages/contracts/src/threat.ts -text whitespace=trailing-space,space-before-tab,cr-at-eol

@@ -8,7 +8,7 @@ import {
   type SourceCoverage,
 } from '@safestep/contracts';
 import type { usePanel } from './usePanel';
-import { products } from '../sites/downloads';
+import { products, packageLabel } from '../sites/downloads';
 import { explainAddress } from '../sites/address-copy';
 import { Explain } from './Explain';
 import { Reveal } from './Guidance';
@@ -72,7 +72,7 @@ export function Reviews({
         setMessage('Choose the product and the Windows package you want.');
         return;
       }
-      if (pkg !== 'x64') {
+      if (pkg !== 'x64' && pkg !== product) {
         setMessage('Download guidance supports Windows x64 EXE for the selected product.');
         return;
       }
@@ -117,12 +117,13 @@ export function Reviews({
             onChange={(e) => {
               changed();
               setProduct(e.target.value as FileProfile | '');
+              setPkg('');
             }}
           >
             <option value="">Choose a product</option>
             {(Object.keys(products) as FileProfile[]).map((p) => (
               <option key={p} value={p}>
-                {products[p].name}
+                {p.startsWith('winscp_') ? packageLabel(p) : products[p].name}
               </option>
             ))}
           </select>
@@ -137,7 +138,8 @@ export function Reviews({
             }}
           >
             <option value="">Choose a package</option>
-            <option value="x64">Windows x64 · EXE</option>
+            {product && product.startsWith('winscp_') ? <option value={product}>{products[product].package}</option> :
+              <option value="x64">Windows x64 · EXE</option>}
             <option value="x86">Windows x86</option>
             <option value="arm">Windows ARM64</option>
             <option value="mac">macOS</option>
@@ -208,11 +210,12 @@ export function Reviews({
                       : 'Refresh after checking the product and page.'}
               </p>
               {d.selection.kind === 'download' && (
-                <small>{products[d.selection.profile].name} · Windows x64 EXE</small>
+                <small>{packageLabel(d.selection.profile)}</small>
               )}
               {d.selected && d.placement && (
                 <Reveal
                   position={d.placement}
+                  targetLabel={d.candidates.find(c => c.ref === d.selected)?.label}
                   show={() => send({ kind: 'reviewReveal', operationId: d.binding.operationId })}
                   keyboardFocus={() => title.current?.focus({ preventScroll: true })}
                 />

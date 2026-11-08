@@ -1,6 +1,6 @@
 {
-  "checkpoint": "stage-8-35d021b232e3",
-  "version": "0.8.6",
+  "checkpoint": "stage-8-2aeb36f98542",
+  "version": "0.8.11",
   "scope": "The source has entries for these nine modules. The independent status is specific to this build.",
   "independent_acceptance": "pending",
   "features": [

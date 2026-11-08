@@ -31,6 +31,7 @@ export function cleanupScope(goal:string){
 }
 export const CleanupSignal = z.enum([
   'labelled_advertisement',
+  'publisher_ad_frame',
   'labelled_sponsored',
   'labelled_promotion',
   'recognized_banner',
@@ -45,6 +46,7 @@ export const CleanupSelection = z
   .refine((s) => new Set(s.ids).size === s.ids.length, 'Duplicate cleanup selection');
 export const cleanupDescriptions: Record<z.infer<typeof CleanupSignal>, string> = {
   labelled_advertisement: 'Region explicitly marked as an advertisement',
+  publisher_ad_frame: 'Publisher-labelled advertisement containing a separately hosted ad frame',
   labelled_sponsored: 'Region explicitly marked as sponsored content',
   labelled_promotion: 'Sidebar explicitly marked as a promotion',
   recognized_banner: 'Marked promotional banner',
@@ -65,7 +67,7 @@ export const CleanAdviceInput = z
       i.candidates.every(
         (c) =>
           (c.reason === 'advertisement' &&
-            ['labelled_advertisement', 'labelled_sponsored'].includes(c.signal)) ||
+            ['labelled_advertisement', 'labelled_sponsored', 'publisher_ad_frame'].includes(c.signal)) ||
           (c.reason === 'promotion' &&
             ['labelled_promotion', 'recognized_banner'].includes(c.signal)) ||
           (c.reason === 'promo_pair' && c.signal === 'recognized_popup_pair'),

@@ -17,8 +17,10 @@ export async function startFixture(port = 4174) {
     ].map((f) => readFile(new URL(f, import.meta.url))),
   );
   const comparison = comparisonFixture();
+  const winscp = await readFile(new URL('winscp-lab.html',import.meta.url));
   const server = http.createServer(async (req, res) => {
-    const path = new URL(req.url, 'http://localhost').pathname;
+    const requestUrl = new URL(req.url, 'http://localhost');
+    const path = requestUrl.pathname;
     if (await comparison(req, res, path)) return;
     const practice = /^\/shopping-lab\/(listing|seller|product|amazon-us)$/.test(path);
     const navigation = /^\/(assist-lab|settings-lab)(?:\/[a-z0-9_-]+)?\/?$/.test(path);
@@ -46,7 +48,7 @@ export async function startFixture(port = 4174) {
                 : path === '/trust-lab'
                   ? trust
                   : path === '/download-lab'
-                    ? downloads
+                    ? (requestUrl.search === '?product=winscp' ? winscp : downloads)
                     : next,
     );
   });

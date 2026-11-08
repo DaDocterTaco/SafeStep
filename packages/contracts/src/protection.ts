@@ -39,7 +39,7 @@ export const ProtectionCommand = z.discriminatedUnion('op', [
     budget: z.number().int().min(0).max(20),
   }),
   z.strictObject({ op: z.literal('removeSite'), site: siteOrigin }),
-  z.strictObject({ op: z.enum(['recheck', 'dismiss']), revision: z.uuid() }),
+  z.strictObject({ op: z.enum(['recheck', 'dismiss','leave']), revision: z.uuid() }),
   z.strictObject({ op: z.literal('allowLimitedTarget'), revision:z.uuid(), ticket:z.uuid() }),
   z.strictObject({ op: z.literal('threat'), revision: z.uuid(), scope: z.enum(['root', 'page']) }),
 ]);
@@ -59,6 +59,7 @@ export const ProtectionView = z.strictObject({
   origin: siteOrigin,
   routeToken: z.string().regex(/^[a-f0-9]{32}$/),
   host: z.string().max(253),
+  expectedHost:z.string().max(253).optional(),
   revision: z.uuid(),
   identity: z.enum(['observed', 'amazon_us', 'mismatch', 'deceptive', 'unusual']),
   address: z.string().min(1).max(350),

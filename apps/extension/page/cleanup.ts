@@ -1,3 +1,4 @@
+import { cueMutation } from './cue-owned';
 import {
   CleanPage,
   parseWire,
@@ -7,6 +8,7 @@ import {
   type ReviewBinding,
 } from '@safestep/contracts';
 import { Outline } from './overlay';
+import { isPublishedAdWrapper } from './ad-wrapper';
 import { readReview } from './review-reader';
 import { rememberCleanup, resetCleanupMemory } from './cleanup-memory';
 type Item = {
@@ -17,22 +19,24 @@ type Item = {
   signal: CleanAdviceInput['candidates'][number]['signal'];
 };
 const protectedRegion =
-  'article,form,nav,header,footer,[role~=navigation i],[role~=form i],[role~=banner i],[role~=contentinfo i],[contenteditable],[data-shopping-evidence],[id*=review i],[class*=review i],[id*=seller i],[id*=product i],[data-private],[role~=alert i],[role~=alertdialog i],[data-security],[data-consent],[aria-label*=consent i],[aria-label*=captcha i],[aria-label*="privacy choices" i],[aria-label*="cookie preferences" i],[aria-label*="security warning" i],[aria-label*=checkout i],[aria-label*=payment i],[role~=region i][aria-labelledby],[data-safestep-outline]';
+  'article,form,nav,header,footer,[role~=navigation i],[role~=form i],[role~=banner i],[role~=contentinfo i],[contenteditable],[data-shopping-evidence],[id*=review i],[class*=review i],[id*=seller i],[id*=product i],[data-private],[role~=alert i],[role~=alertdialog i],[data-security],[data-consent],[aria-label*=consent i],[aria-label*=captcha i],[aria-label*="privacy choices" i],[aria-label*="cookie preferences" i],[aria-label*="security warning" i],[aria-label*=checkout i],[aria-label*=payment i],[role~=region i][aria-labelledby],[data-safestep-outline],[data-safestep-instruction],[data-safestep-dock]';
 const mainRegion = 'main,[role~=main i]';
-const essential = mainRegion + ',input,textarea,select,iframe,[data-safestep-warning],[data-protection-warning],[role=status],[aria-live=assertive],[data-comparison-subject],[data-selected-variant],' + protectedRegion;
+const essential = mainRegion + ',input,textarea,select,[data-safestep-warning],[data-protection-warning],[role=status],[aria-live=assertive],[data-comparison-subject],[data-selected-variant],' + protectedRegion;
 function protect(e: HTMLElement, known = false) {
+  const adWrapper = isPublishedAdWrapper(e);
   if (
     e === document.body ||
     e === document.documentElement ||
     e.contains(document.activeElement) ||
     Outline.protected(e) ||
     e.matches(essential) ||
+    (!adWrapper && (e.matches('iframe') || e.querySelector('iframe'))) ||
     e.querySelector(essential + ',h1,h2,h3,section[aria-label]')
   )
     return true;
   if (
     e.closest(protectedRegion) ||
-    (e.closest(mainRegion) && e.querySelector('p,article,section,figure,table'))
+    (!adWrapper && e.closest(mainRegion) && e.querySelector('p,article,section,figure,table'))
   )
     return true;
   if (!known && e.closest('dialog,[role=dialog],[aria-modal=true]')) return true;
@@ -74,6 +78,7 @@ export function installCleanup() {
     el.getAttribute('data-nonessential') === 'promotion';
   function signalFor(e:HTMLElement,pair:HTMLElement|null):Item['signal']|null{
     if(pair && fixturePair(e))return 'recognized_popup_pair';
+    if(isPublishedAdWrapper(e))return 'publisher_ad_frame';
     const label=e.matches('aside,[role=complementary]')?(e.getAttribute('aria-label')??'').trim().toLowerCase():'';
     if(/^(?:advertisement|advertising)$/.test(label)||e.matches('[data-ad-region="advertisement"]'))return 'labelled_advertisement';
     if(/^(?:sponsored|sponsored content|sponsored links)$/.test(label))return 'labelled_sponsored';
@@ -94,16 +99,16 @@ export function installCleanup() {
       }
       if (
         !(node instanceof HTMLElement) ||
-        node.closest('[data-safestep-outline],form,iframe,script,style')
+        node.closest('[data-safestep-outline],[data-safestep-instruction],[data-safestep-dock],form,iframe,script,style')
       )
         continue;
       const e = node;
       if (groupHasHeld(e)) continue;
       const pair = fixturePair(e) ? document.getElementById('practice-backdrop') : null;
       const signal=signalFor(e,pair);
-      const ad=signal==='labelled_advertisement'||signal==='labelled_sponsored';
+      const ad=signal==='labelled_advertisement'||signal==='labelled_sponsored'||signal==='publisher_ad_frame';
       if (!signal) {
-        if (e.matches('dialog[open],[role=dialog],[aria-modal=true]') && e.checkVisibility())
+        if (e.matches('dialog[open],[role=dialog],[aria-modal=true],ins.adsbygoogle[data-vignette-loaded],iframe[id^=google_vignette]') && e.checkVisibility())
           uncertain = true;
         continue;
       }
@@ -265,6 +270,7 @@ export function installCleanup() {
       !enabled ||
       timer ||
       !records.some((r) => {
+        if(cueMutation(r))return false;
         const e = r.target instanceof Element ? r.target : r.target.parentElement;
         if (r.attributeName === attr)
           return e instanceof HTMLElement && groupHasHeld(e) && e.getAttribute(attr) !== token;
@@ -283,13 +289,13 @@ export function installCleanup() {
           return true;
         return (
           e &&
-          !e.closest('[data-safestep-outline],style,input,textarea') &&
+          !e.closest('[data-safestep-outline],[data-safestep-instruction],[data-safestep-dock],style,input,textarea') &&
           !(
             r.type === 'childList' &&
             [...r.addedNodes, ...r.removedNodes].every(
               (n) =>
                 n === style ||
-                (n instanceof HTMLElement && n.matches('[data-safestep-outline],style')),
+                (n instanceof HTMLElement && n.matches('[data-safestep-outline],[data-safestep-instruction],[data-safestep-dock],style')),
             )
           )
         );

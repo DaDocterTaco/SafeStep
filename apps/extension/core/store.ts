@@ -4,6 +4,7 @@ import { syncRegistrations } from './access';
 
 const prefix = 'task:';
 export class Store {
+  onStateChange?: (id:number)=>void;
   tabs = new Map<number, RecordState>();
   prefs: Preferences = { largeText: false, sites: [] };
   private writes: Promise<unknown> = Promise.resolve();
@@ -45,6 +46,7 @@ export class Store {
   save(s: RecordState) {
     if (this.tabs.get(s.cp.tabId) !== s) return Promise.resolve();
     const cp = structuredClone(s.cp);
+    this.onStateChange?.(s.cp.tabId);
     return this.write(() => chrome.storage.session.set({ [prefix + cp.tabId]: cp }));
   }
   drop(id: number) {

@@ -116,7 +116,7 @@ export function Adaptive({
                   </button>
                 ))}
               {a.intent && !a.authorized && t.state === 'showing_step' && (
-                <button onClick={() => action('reveal')}>Show this target</button>
+                <button data-show-step="" onClick={() => action('reveal')}>Show step</button>
               )}
             </>
           )}

@@ -78,6 +78,28 @@ function bind(taskId: string): AssistBinding {
   return {operationId:crypto.randomUUID(),taskId,tabId:42,windowId:1,goalVersion:1,
     origin,documentId:'1'.repeat(32),epoch:0,revision:crypto.randomUUID(),generation:1};
 }
+test('only the actual selected Wikipedia article handoff may retain the owning guide during a pending reveal',async t=>{
+  const {task,run,nav,state,tab,update}=scenario(t);
+  task.adaptive.searchQuery='Phishing';
+  const url=origin+'/w/index.php?title=Special:Search&search=Phishing';
+  await update(url);
+  run.from='/wiki/Special:Search';run.b=bind(task.id);run.expected='/wiki/Phishing';
+  run.selected={ref:crypto.randomUUID(),role:'link',action:'activate_readonly_link',label:'Phishing',path:run.expected,visible:true};
+  const article=origin+run.expected,decorated=article+'?wprov=srpw1_0';
+  assert(!nav.selectedWikiHandoff(state,tab,decorated));
+  await nav.notice({channel:'assist-notice',binding:run.b,event:'user_target'},
+    {id:chrome.runtime.id,frameId:0,documentId:run.b.documentId,tab});
+  for(const publicTransition of [url,url+'&ns0=1&searchToken=fixture',article,decorated])
+    assert(nav.selectedWikiHandoff(state,tab,publicTransition));
+  for(const bad of [url.replace('Phishing','Mars'),article.replace('Phishing','Mars'),decorated+'&private=1',
+    decorated.replace('srpw1_0','other'),decorated.replace('en.wikipedia.org','example.org')])
+    assert(!nav.selectedWikiHandoff(state,tab,bad));
+  assert(!nav.selectedWikiHandoff(state,{...tab,active:false},decorated));
+  assert(!nav.selectedWikiHandoff(state,{...tab,id:99},decorated));
+  assert(!nav.selectedWikiHandoff(state,{...tab,windowId:99},decorated));
+  await nav.pause(state,'Stopped by user.','cancelled');
+  assert(!nav.selectedWikiHandoff(state,tab,decorated));
+});
 for(const oldState of ['paused','showing_step'] as const){
   test('a retired catalog task cannot erase an explicit grant to the current storefront: '+oldState,async t=>{
     const {task,run,state,update}=scenario(t);

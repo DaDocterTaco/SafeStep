@@ -1,5 +1,7 @@
 import {
   privateText,
+  isWinSCP,
+  winSCPRequest,
   type AssistSnapshot,
   type FileProfile,
   type Intent,
@@ -23,6 +25,20 @@ const normalize = (s: string) =>
 export function publisherChoice(raw: string, origin: string | null, chosen?: FileProfile): Choice {
   if (resolveGoal(raw) === 'videolan_windows_page') return { kind: 'unrelated' };
   const words = normalize(raw);
+  if (/\bwinscp\b/.test(words) || origin === 'https://winscp.net' || (chosen && isWinSCP(chosen))) {
+    if (!/\b(?:download|installer|setup|portable|package|executables?)\b/.test(words)) return {kind:'unrelated'};
+    const options: FileProfile[] = ['winscp_windows_setup', 'winscp_portable'];
+    if (chosen && !isWinSCP(chosen)) return {kind:'unsupported',message:'The chosen package does not match this publisher.',choices:[]};
+    const fixture = !!origin && /^http:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(origin);
+    if (privateText(raw) || (!fixture && origin !== 'https://winscp.net'))
+      return {kind:'unsupported',message:'Open the official winscp.net download page and use a public package request.',choices:[]};
+    const choice = winSCPRequest(raw);
+    if (choice === 'unsupported') return {kind:'unsupported',message:'This guide identifies the standard Windows installer or portable ZIP. Other applications, architectures and packages need a different guide.',choices:[]};
+    if (choice === 'clarify' || (chosen && chosen !== choice && !/^find a download[.!?]?$/.test(words)))
+      return {kind:'clarify',message:'Which WinSCP package and platform do you want? Keep any version or other requirements in your request.',choices:[]};
+    if (!chosen && /^find a download[.!?]?$/.test(words)) return {kind:'clarify',message:'Which WinSCP package would you like?',choices:options};
+    return {kind:'ready',profile:chosen ?? choice};
+  }
   if (
     /\b(?:vlc|videolan|7[ -]?zip)\b/.test(words) &&
     (/^\s*(?:please\s+)?install\b/.test(words) ||
@@ -110,6 +126,17 @@ export function publisherChoice(raw: string, origin: string | null, chosen?: Fil
 }
 
 export function publisherGoal(raw: string): Intent {
+  // Retain source spans for local WinSCP goals, including the negative
+  // package and final-action clauses, when no model session is available.
+  if (/\bwinscp\b/i.test(raw)) {
+    const exclusions = [...raw.matchAll(/\b(?:do not|don't|not|without|except|excluding|avoid|never)\s+([^,.;!?]+)/gi)];
+    if (exclusions.length) {
+      const end = exclusions[0]!.index!;
+      return { action:'find_document',subjects:[{text:raw.slice(0,end),start:0,end}],constraints:[],
+        excluded:exclusions.map(m=>{const start=m.index!+m[0].length-m[1]!.length;
+          return {text:m[1]!,start,end:start+m[1]!.length};}),question:'',choices:[] };
+    }
+  }
   return {
     action: 'find_document',
     subjects: [{ text: raw, start: 0, end: raw.length }],
@@ -120,6 +147,11 @@ export function publisherGoal(raw: string): Intent {
   };
 }
 export function isPublisherTerminal(url: URL, profile: FileProfile) {
+  if (isWinSCP(profile)) {
+    if (fixturePage(url,'download')) return url.search === '?product=winscp' && !url.hash;
+    return url.href === 'https://winscp.net/eng/downloads.php' ||
+      (profile === 'winscp_windows_setup' && url.href === 'https://winscp.net/eng/download.php');
+  }
   return (
     !url.username &&
     !url.password &&

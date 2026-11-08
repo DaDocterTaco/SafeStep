@@ -23,6 +23,7 @@ const common = { v: z.literal(wireVersion), requestId: id, tabId: tab };
 const command = z.discriminatedUnion('kind', [
   z.strictObject({ kind:z.literal('chat'), action:ChatAction }),
   z.strictObject({ kind: z.literal('view') }),
+  z.strictObject({ kind: z.literal('tuck'), taskId:id.nullable() }),
   z.strictObject({ kind: z.literal('protection'), action: ProtectionCommand }),
   z.strictObject({ kind: z.literal('compare'), action: CompareAction }),
   z.strictObject({ kind: z.literal('assistGoal'), goal: z.string().min(1).max(240), download: FileProfile.optional(), localPublisher:z.literal(true).optional() }),

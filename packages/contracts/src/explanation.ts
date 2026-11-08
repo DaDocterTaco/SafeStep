@@ -75,7 +75,7 @@ export function explanationChoices(r: ExplanationInput) {
   const download = r.kind === 'download';
   const summary = download
     ? r.selected
-      ? 'A publisher-linked control was identified for the selected Windows x64 package.'
+      ? 'A publisher-linked control was identified for the selected Windows package.'
       : 'The requested package has no confirmed unique control.'
     : 'This check describes observations from the current website.';
   const gloss: Partial<Record<keyof typeof signalText, string>> = {
@@ -89,6 +89,7 @@ export function explanationChoices(r: ExplanationInput) {
       'The Windows package matches the version shown on the VLC page and the specified VideoLAN distributor.',
     publisher_7zip:
       'The installer belongs to the current Windows x64 EXE row and the matching ip7z/7zip release.',
+    publisher_winscp: 'The current WinSCP release, package label and publisher-hosted filename agree.',
     other_option: 'Another control points to a different option from the package you selected.',
     unknown_link: 'A static address is unavailable for this control.',
     http: 'This HTTP connection does not encrypt traffic between the browser and website.',

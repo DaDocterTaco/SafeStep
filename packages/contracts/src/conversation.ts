@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { FeatureId } from './features.js';
+import { FileProfile } from './review.js';
 
 export const ChatState = z.enum([
   'idle',
@@ -38,7 +39,7 @@ export const ChatTurn = z.strictObject({
   comparisonMode: z
     .enum(['same_product_other_sellers', 'similar_products', 'compare_selected'])
     .optional(),
-  profile: z.enum(['vlc_windows_x64', 'seven_zip_windows_x64_exe']).optional(),
+  profile: FileProfile.optional(),
   clarifications: z.number().int().min(0).max(2).optional(),
 });
 export type ChatTurn = z.infer<typeof ChatTurn>;

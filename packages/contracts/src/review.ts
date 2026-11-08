@@ -1,8 +1,17 @@
 import { z } from 'zod';
 import { AddressObservation, Placement, WorkflowId } from './guidance.js';
 
-export const FileProfile = z.enum(['vlc_windows_x64', 'seven_zip_windows_x64_exe']);
+export const FileProfile = z.enum(['vlc_windows_x64', 'seven_zip_windows_x64_exe', 'winscp_windows_setup', 'winscp_portable']);
 export type FileProfile = z.infer<typeof FileProfile>;
+export const publisherOrigins: Record<FileProfile, string> = {
+  vlc_windows_x64: 'https://www.videolan.org',
+  seven_zip_windows_x64_exe: 'https://www.7-zip.org',
+  winscp_windows_setup: 'https://winscp.net',
+  winscp_portable: 'https://winscp.net',
+};
+export function isWinSCP(profile: FileProfile) {
+  return profile === 'winscp_windows_setup' || profile === 'winscp_portable';
+}
 export const Selection = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('website'), expected: WorkflowId.optional() }),
   z.strictObject({ kind: z.literal('download'), profile: FileProfile }),
@@ -22,6 +31,7 @@ export const Signal = z.enum([
   'limited',
   'publisher_vlc',
   'publisher_7zip',
+  'publisher_winscp',
   'wrong_destination',
   'other_option',
   'unknown_link',
@@ -52,6 +62,7 @@ export const signalText: Record<Signal, string> = {
   publisher_vlc: 'The VLC version, Windows x64 architecture and distributor path agree.',
   publisher_7zip:
     'The current Windows x64 EXE row matches the release and filename in the publisher’s ip7z/7zip GitHub repository.',
+  publisher_winscp: 'The WinSCP publisher, displayed release and filename match the requested Windows package.',
   wrong_destination: 'This destination does not match the selected publisher and package.',
   other_option: 'This is another package, platform, release or page option.',
   unknown_link: 'This control has no inspectable web destination.',
@@ -104,7 +115,7 @@ export const Candidate = z.strictObject({
     .string()
     .max(140)
     .regex(
-      /^\/(?:vlc\/[\d.]+\/win64\/vlc-[\d.]+-win64\.exe|ip7z\/7zip\/releases\/download\/[\d.]+\/7z\d+-x64\.exe)$/,
+      /^\/(?:vlc\/[\d.]+\/win64\/vlc-[\d.]+-win64\.exe|ip7z\/7zip\/releases\/download\/[\d.]+\/7z\d+-x64\.exe|download\/WinSCP-\d+(?:\.\d+){1,3}-(?:Setup\.exe|Portable\.zip)\/download)$/,
     )
     .nullable(),
   address: AddressObservation,

@@ -10,10 +10,12 @@ import type {
 } from '@safestep/contracts';
 import { observeAddress } from '../sites/address';
 import { products, fixturePage, packageMatches } from '../sites/downloads';
+import { isWinSCP } from '@safestep/contracts';
 import { profileFor, workflows } from '../sites/profiles';
 import { placement } from '../sites/workflow';
 import { clean, visible } from './reader';
 import {cleanupMemory} from './cleanup-memory';
+import { isPublishedAdWrapper } from './ad-wrapper';
 
 const privateArea =
   'input,textarea,select,option,script,style,template,noscript,[contenteditable]:not([contenteditable="false"]),[hidden],[inert],[aria-hidden="true"]';
@@ -22,7 +24,7 @@ const warningDialog =
   'dialog[open],[role=alertdialog],[role=dialog],[aria-modal=true],[role=alert]';
 const noteworthy =
   controls +
-  ',h1,h2,p,b,small,span,strong,td,th,#downloadDetails,[itemprop=aggregateRating],' +
+  ',h1,h2,h3,p,b,small,span,strong,td,th,#downloadDetails,[itemprop=aggregateRating],' +
   warningDialog;
 function publicPage() {
   const elements: HTMLElement[] = [],
@@ -134,10 +136,58 @@ type FileScan = {
   primary: HTMLElement[];
   uncertain: boolean;
 };
+function winSCPScan(p: Page, id: FileProfile, result: FileScan) {
+  const heading = p.elements.filter(e => /^H[12]$/.test(e.tagName) &&
+    /^(?:Download latest WinSCP \d+(?:\.\d+){1,3}|WinSCP \d+(?:\.\d+){1,3} Download)$/i.test(words(p,e)));
+  if (heading.length !== 1) { result.uncertain = heading.length > 1; return; }
+  result.version = words(p,heading[0]!).match(/\d+(?:\.\d+){1,3}/)![0];
+  let inRelease = false, section = '';
+  for (const e of p.elements) {
+    if (e === heading[0]) { inRelease = true; continue; }
+    if (/^H[12]$/.test(e.tagName)) inRelease = false;
+    if (e.tagName === 'H3') section = words(p,e);
+    if (!(e instanceof HTMLAnchorElement)) continue;
+    const destination = new URL(e.href);
+    if (destination.origin !== 'https://winscp.net' || !destination.pathname.startsWith('/download/')) continue;
+    result.primary.push(e);
+    if (!inRelease) continue;
+    const name = label(p,e);
+    const matches = id === 'winscp_portable'
+      ? /^portable executables$/i.test(section) && /\bdownload\b/i.test(name) && /\bportable\b/i.test(name)
+      : name.toLowerCase().startsWith('download winscp ' + result.version.toLowerCase()) &&
+        /\bWinSCP\s+(\d+(?:\.\d+){1,3})\b/i.exec(name)?.[1] === result.version;
+    if (matches) result.eligible.add(e);
+  }
+}
+function winSCPHint(url: URL | null) {
+  if (url?.origin !== 'https://winscp.net' || !url.pathname.startsWith('/download/')) return '';
+  const name = url.pathname.split('/')[2] ?? '';
+  if (/^(?:putty|pageant)/i.test(name)) return 'Separate PuTTY product';
+  if (/experimental/i.test(name)) return 'Experimental build';
+  if (/Automation\.zip$/i.test(name)) return 'Automation library';
+  if (/Source\.zip$/i.test(name)) return 'Source code';
+  if (/\.msi$/i.test(name)) return 'MSI installation package';
+  if (/Portable\.zip$/i.test(name)) return 'Portable executables';
+  if (/Setup\.exe$/i.test(name)) return 'Windows installer';
+  return '';
+}
+function reachableFile(link: HTMLAnchorElement) {
+  if (!operable(link) || getComputedStyle(link).pointerEvents === 'none') return false;
+  const blocker = document.elementFromPoint(innerWidth / 2, innerHeight / 2);
+  for (let p=blocker; p && p !== document.body; p=p.parentElement) {
+    const box=p.getBoundingClientRect();
+    if (!p.contains(link) && getComputedStyle(p).position==='fixed' && box.width>=innerWidth*0.85 && box.height>=innerHeight*0.85) return false;
+  }
+  const r=link.getBoundingClientRect(), x=(Math.max(r.left,0)+Math.min(r.right,innerWidth))/2,
+    y=(Math.max(r.top,0)+Math.min(r.bottom,innerHeight))/2;
+  return r.right<=0 || r.bottom<=0 || r.left>=innerWidth || r.top>=innerHeight || link.contains(document.elementFromPoint(x,y));
+}
 function fileScope(p: Page, id: FileProfile): FileScan {
   const result: FileScan = { version: '', eligible: new Set(), primary: [], uncertain: false };
   const heads = p.elements.filter((e) => e.tagName === 'H1');
-  if (id === 'vlc_windows_x64') {
+  if (isWinSCP(id)) {
+    winSCPScan(p, id, result);
+  } else if (id === 'vlc_windows_x64') {
     if (heads.filter((h) => words(p, h) === 'VLC for Windows').length !== 1) return result;
     const details = p.elements.filter((e) => e.id === 'downloadDetails');
     const v =
@@ -256,7 +306,7 @@ export function readReview(binding: ReviewBinding, selection: Selection) {
       ] as const)
         if (a.flags.includes(code)) note(code, a.host ?? '');
     }
-    if (el.matches(controls) && isSponsored(el, p)) note('sponsored');
+    if ((el.matches(controls) && isSponsored(el, p)) || isPublishedAdWrapper(el)) note('sponsored');
     if (el.matches('[itemprop=aggregateRating]')) note('self_claim');
     if (!p.text.has(el)) continue;
     if (el.matches(warningDialog) || getComputedStyle(el).position === 'fixed') {
@@ -278,7 +328,8 @@ export function readReview(binding: ReviewBinding, selection: Selection) {
     pos: ReviewData['placement'] = null;
   if (selection.kind === 'download') {
     const id = selection.profile;
-    const supported =
+    const supported = isWinSCP(id) ? (u.href === 'https://winscp.net/eng/downloads.php' ||
+      (id === 'winscp_windows_setup' && u.href === products[id].page) || (fixture && u.search === '?product=winscp' && !u.hash)) :
       (u.origin + u.pathname === products[id].page && !u.username && !u.password) || fixture;
     if (!supported) fileState = 'unsupported';
     else {
@@ -306,7 +357,7 @@ export function readReview(binding: ReviewBinding, selection: Selection) {
         const a = observeAddress(href, document.baseURI, null, words(p, el)),
           sponsored = isSponsored(el, p);
         const eligible = scan.eligible.has(el);
-        const unusable = eligible && !!anchor && !operable(anchor);
+        const unusable = eligible && !!anchor && !(isWinSCP(id) ? reachableFile(anchor) : operable(anchor));
         const allowed =
           !!anchor &&
           !!a.host &&
@@ -323,7 +374,7 @@ export function readReview(binding: ReviewBinding, selection: Selection) {
               ? 'other_option'
               : 'unknown';
         const reason: Signal = allowed
-          ? id === 'vlc_windows_x64'
+          ? isWinSCP(id) ? 'publisher_winscp' : id === 'vlc_windows_x64'
             ? 'publisher_vlc'
             : 'publisher_7zip'
           : sponsored
@@ -354,7 +405,8 @@ export function readReview(binding: ReviewBinding, selection: Selection) {
               : '';
         const suffix = /^\.(?:exe|msi|7z|tar\.xz|zip)$/.test(format) ? format : '';
         const packageHint = allowed
-          ? 'Windows x64 EXE · ' + scan.version
+          ? products[id].package + ' · ' + scan.version
+          : isWinSCP(id) ? winSCPHint(anchor ? new URL(anchor.href) : null)
           : row
             ? [platform, architecture, suffix].filter(Boolean).join(' ')
             : '';

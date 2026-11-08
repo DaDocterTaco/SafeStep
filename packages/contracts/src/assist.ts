@@ -1,7 +1,8 @@
 import { z } from 'zod';
-import { bindingSchema, FileProfile } from './review.js';
+import { CleanupSignal } from './cleanup-advice.js';
+import { bindingSchema, FileProfile, publisherOrigins } from './review.js';
 import { GenerationLimit } from './explanation.js';
-import {wikiCitationPage,wikiCitationSubject,wikiCurrentSection,wikiExportGoal,wikiExportTarget,publicCatalogPath,storeListing,tenantOrigin} from './site-navigation.js';
+import {wikiCitationPage,wikiCitationSubject,wikiSectionRequest,wikiExportGoal,wikiExportTarget,publicCatalogPath,storeListing,tenantOrigin} from './site-navigation.js';
 export const assistProfiles = z.enum([
   'mdn',
   'python',
@@ -144,7 +145,7 @@ export function profileForPage(u: URL): AssistProfile {
   if (u.origin === 'https://en.wikipedia.org') return 'wikipedia';
   if (u.origin === 'https://resell.store') return 'catalog';
   if(tenantOrigin(u))return 'storefront';
-  if (['https://www.videolan.org', 'https://www.7-zip.org', 'https://7-zip.org'].includes(u.origin))
+  if (['https://www.videolan.org', 'https://www.7-zip.org', 'https://7-zip.org', 'https://winscp.net'].includes(u.origin))
     return 'publisher';
   if (
     u.protocol === 'http:' &&
@@ -165,7 +166,9 @@ export function wikipediaArticlePrefix(goal: string) {
 export function publicSearchQuery(goal: string): string | null {
   const citation=wikiCitationSubject(goal);
   if(citation && safeLabel(citation)) return citation;
-  if(wikiCurrentSection(goal)||wikiExportGoal(goal))return null;
+  const section=wikiSectionRequest(goal);
+  if(section)return !section.ambiguous && section.subject && safeLabel(section.subject)?section.subject:null;
+  if(wikiExportGoal(goal))return null;
   const positive = goal.split(/\b(?:not|without|except|avoid|never|instead of)\b/i)[0]!;
   const prefix = wikipediaArticlePrefix(positive);
   const topic = prefix ? positive.slice(prefix.topicStart) : positive;
@@ -267,7 +270,7 @@ export function publicPath(u: URL, profile: AssistProfile): string | null {
       u.username ||
       u.password ||
       u.hash ||
-      [...u.searchParams].some(([k, v]) => k !== 'product' || !['vlc', '7zip'].includes(v)) ||
+      [...u.searchParams].some(([k, v]) => k !== 'product' || !['vlc', '7zip', 'winscp'].includes(v)) ||
       [...u.searchParams].length > 1
     )
       return null;
@@ -307,6 +310,8 @@ export function publicPath(u: URL, profile: AssistProfile): string | null {
   }
   if (profile === 'publisher') {
     if (u.username || u.password || u.search || (u.hash && !/^#[a-z0-9_-]{1,48}$/i.test(u.hash))) return null;
+    if (u.origin === 'https://winscp.net')
+      return !u.hash && /^\/eng\/downloads?\.php$/.test(u.pathname) ? u.pathname : null;
     const allowed =
       u.hostname === 'www.videolan.org'
         ? /^\/(?:vlc\/(?:download-(?:windows|macosx|linux|ubuntu|android|ios)\.html|features\.html|releases\/\d+(?:\.\d+){1,3}\.html)?|support\/(?:faq\.html)?|security\/(?:[\w-]+\.html)?|news\.html|index\.html)?(?:#[a-z0-9_-]+)?$/i
@@ -373,6 +378,15 @@ export const publicRef = z.strictObject({
   targetOrigin:z.string().max(110).optional(),
 });
 export type PublicRef = z.infer<typeof publicRef>;
+export function publicStepInstruction(target: Pick<PublicRef, 'action' | 'role' | 'label' | 'expanded'>) {
+  const { label, action, role } = target;
+  if (/^(?:open|choose|find|select|show|follow|search|go to|review)\b/i.test(label)) return label;
+  if (action === 'toggle_known_navigation') return (target.expanded ? 'Close ' : 'Open ') + label;
+  if (action === 'submit_public_search') return 'Search using ' + label;
+  if (action === 'reveal_target') return 'Find ' + label;
+  if (action === 'handoff_storefront') return 'Review ' + label;
+  return (role === 'link' ? 'Open ' : 'Select ') + label;
+}
 export const AssistSnapshot = z.strictObject({
   profile: assistProfiles,
   path,
@@ -415,8 +429,7 @@ export function validAssistInput(i: IntentInput | StepInput) {
     !(i.profile === 'practice' && allowedLocal) &&
     !(
       i.profile === 'publisher' &&
-      origin.origin ===
-        (i.download === 'vlc_windows_x64' ? 'https://www.videolan.org' : 'https://www.7-zip.org')
+      origin.origin === publisherOrigins[i.download]
     )
   )
     return false;
@@ -583,7 +596,7 @@ export type AdaptiveState = z.infer<typeof AdaptiveState>;
 export const CleanItem = z.strictObject({
   id,
   reason: z.enum(['advertisement', 'promotion', 'promo_pair']),
-  signal: z.enum(['labelled_advertisement','labelled_sponsored','labelled_promotion','recognized_banner','recognized_popup_pair']).optional(),
+  signal: CleanupSignal.optional(),
   hidden: z.boolean(),
 });
 export const CleanupView = z.strictObject({

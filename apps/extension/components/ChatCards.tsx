@@ -18,6 +18,11 @@ export function retainKeyboardFocus() {
 }
 export type Conversation = NonNullable<PanelView['chat']>;
 export type Turn = Conversation['turns'][number];
+export function activeManualStep(v: PanelView, turn: Turn) {
+  const task = v.task;
+  return !!task && turn.taskId === task.id && task.mode === 'guide' && task.state === 'showing_step' &&
+    (turn.feature === 'visual_guidance' || turn.feature === 'automatic_navigation' || turn.feature === 'download_guidance');
+}
 export type CardAction =
   | 'guide'
   | 'automatic'
@@ -46,6 +51,22 @@ export const featureNames: Record<FeatureId, string> = {
   shopping_alternatives: 'Compare alternatives',
 };
 
+// The transcript keeps every original message. Render an active card's exact
+// status or instruction there only once; historical turns still stand alone.
+export function navigationCardStatesText(v: PanelView, turn: Turn) {
+  const task = v.task;
+  if (!task || turn.taskId !== task.id ||
+      !['visual_guidance', 'automatic_navigation', 'download_guidance'].includes(turn.feature ?? '') ||
+      ['clarifying', 'awaiting_access', 'unavailable', 'unsupported', 'error', 'stale'].includes(turn.state))
+    return false;
+  const step = v.snapshot?.guide;
+  if (task.adaptive?.status === turn.text) return true;
+  if (!task.guide) return false;
+  if (task.state === 'completed') return turn.text === workflows[task.guide.workflow].done;
+  return task.state === 'showing_step' && step?.result === 'target' &&
+    turn.text === workflows[task.guide.workflow].steps[step.step - 1];
+}
+
 export function NavigationCard({
   v,
   turn,
@@ -70,30 +91,35 @@ export function NavigationCard({
   const complete = live && ['completed', 'cancelled', 'failed'].includes(task.state);
   const instruction = live && guide ? v.snapshot?.guide : undefined;
   const paused = live && task.state === 'paused';
+  const manual = activeManualStep(v, turn);
+  const target = manual ? v.guideTarget : undefined;
+  const originForTarget = target?.targetOrigin ?? v.origin;
+  const destination = target?.path && originForTarget && URL.canParse(target.path, originForTarget)
+    ? new URL(target.path, originForTarget).href : null;
   const canChoose =
     !complete &&
     (preflight ||
       (live &&
         ['awaiting_confirmation', 'showing_step', 'paused', 'awaiting_user'].includes(task.state)));
   return (
-    <section aria-label="Navigation action" className="action-card">
-      <h3>{turn.feature === 'download_guidance' ? 'Download guidance' : 'Page guidance'}</h3>
-      {live && (
-        <p role="status" data-testid="assist-state">
+    <section aria-label="Navigation action" className={manual ? 'action-card manual-step' : 'action-card'}>
+      {!manual && <h3>{turn.feature === 'download_guidance' ? 'Download guidance' : 'Page guidance'}</h3>}
+      {live && !(manual && guide) && (
+        <p data-testid="assist-state">
           {adaptive?.status ?? task.state.replaceAll('_', ' ')}
         </p>
       )}
-      {live && guide && instruction?.result === 'target' && (
+      {live && task.state === 'showing_step' && guide && instruction?.result === 'target' && (
         <p data-testid="instruction">{workflows[guide.workflow].steps[instruction.step - 1]}</p>
       )}
-      {instruction?.ref && instruction.placement && (
-        <Reveal position={instruction.placement} show={() => act('reveal')} />
+      {live && task.state === 'showing_step' && instruction?.ref && instruction.placement && (
+        <Reveal position={instruction.placement} targetLabel={workflows[guide!.workflow].steps[instruction.step - 1]}
+          show={() => act('reveal')} />
       )}
       {live && guide && task.state === 'completed' && <p>{workflows[guide.workflow].done}</p>}
-      {live && adaptive && adaptive.intent && (
+      {destination && <details className="step-destination"><summary>Destination</summary><p>{destination}</p></details>}
+      {live && adaptive?.intent && (adaptive.intent.constraints.length > 0 || adaptive.intent.excluded.length > 0 || adaptive.searchQuery) && (
         <dl className="card-facts">
-          <dt>Requested</dt>
-          <dd>{task.goal}</dd>
           {adaptive.intent.constraints.length > 0 && (
             <>
               <dt>Requirements</dt>
@@ -134,10 +160,10 @@ export function NavigationCard({
                   Allow SafeStep to follow verified public controls on <strong>{origin}</strong> for
                   this request?
                 </p>
-                <p>
-                  {adaptive?.searchQuery ? 'The displayed search may be submitted. ' : ''}You can
-                  stop at any time. You choose the final download.
-                </p>
+                {(adaptive?.searchQuery || turn.feature === 'download_guidance') && <p>
+                  {adaptive?.searchQuery ? 'The displayed search may be submitted. ' : ''}
+                  {turn.feature === 'download_guidance' && 'You choose the final download.'}
+                </p>}
                 <button
                   ref={start}
                   className="primary"
@@ -171,7 +197,8 @@ export function NavigationCard({
         </div>
       )}
       {live && adaptive && task.state === 'showing_step' && !adaptive.authorized && (
-        <button onClick={() => act('reveal')}>Show this target</button>
+        <button data-show-step="" aria-label={v.guideTarget ? 'Show step: ' + v.guideTarget.label : 'Show step'}
+          onClick={() => act('reveal')}>Show step</button>
       )}
       {live && adaptive?.returnUrl && task.state==='showing_step' && (
         <p>Earlier public results: {adaptive.returnUrl}<br/>
@@ -289,7 +316,7 @@ export function ResultCard({
     return (
       <Comparison v={v} send={send} original={turn.original} initialMode={turn.comparisonMode} />
     );
-  if (feature === 'page_cleanup' && v.cleanup) {
+  if (feature === 'page_cleanup' && v.cleanup && turn.operationId === v.cleanup.binding.operationId) {
     const c = v.cleanup;
     const scope=cleanupScope(turn.original??'');
     return (
@@ -299,7 +326,7 @@ export function ResultCard({
           {c.items.length} recognized · {c.hidden} hidden
           {c.limited ? ' · inspection limit reached' : ''}
         </p>
-        {c.uncertain && <p>An unrecognized dialog is still visible. Review its choices yourself.</p>}
+        {c.uncertain && <p>An overlay is still visible. If it offers Close ad, use that control yourself.</p>}
         {!c.items.length && <p>No eligible distraction was found in the inspected regions.</p>}
         {!!c.failed && <p>{c.failed} regions could not stay hidden.</p>}
         {c.items.map((item) => (

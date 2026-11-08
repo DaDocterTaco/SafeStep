@@ -1,12 +1,178 @@
-import { useEffect, useState } from 'react';
-import { nextProtectionExpiry, protectionOff, threatAccuracyNotice, threatFinding, threatWarningLinks, visibleProtection, type PanelView, type ProtectionPreferences, type ThreatReply, type ProtectionView } from '@safestep/contracts';
+import { useEffect, useRef, useState } from 'react';
+import {
+  nextProtectionExpiry,
+  protectionOff,
+  threatAccuracyNotice,
+  threatFinding,
+  threatWarningLinks,
+  visibleProtection,
+  type PanelView,
+  type ProtectionPreferences,
+  type ThreatReply,
+  type ProtectionView,
+} from '@safestep/contracts';
 import type { usePanel } from './usePanel';
 import { allWeb, pattern } from '../core/access';
 import { protectionAddress } from '../sites/protection';
 import { automaticThreatSubject } from '@safestep/contracts';
+import {
+  currentWarningText,
+  warningPresentationKey,
+  warningPortName,
+} from '../sites/protection-warning';
 
 type Send = ReturnType<typeof usePanel>['command'];
 type Props = { v: PanelView; send: Send };
+export function CurrentSiteWarning({ v, send }: Props) {
+  const p = v.protection;
+  if (!p?.caution || p.dismissed || p.origin !== v.origin) return null;
+  return <PanelWarning key={warningPresentationKey(p)} p={p} tabId={v.tabId} send={send} />;
+}
+function PanelWarning({ p, tabId, send }: { p: ProtectionView; tabId: number; send: Send }) {
+  const [folded, setFolded] = useState(false),
+    root = useRef<HTMLElement>(null);
+  const { doc, origin, revision, routeToken } = p;
+  useEffect(() => {
+    let closed = false,
+      tries = 0,
+      port: chrome.runtime.Port | undefined,
+      timer: ReturnType<typeof setTimeout> | undefined;
+    const connect = () => {
+      if (closed || port || document.visibilityState !== 'visible') return;
+      try {
+        const channel = chrome.tabs.connect(tabId, { name: warningPortName, documentId: doc });
+        port = channel;
+        channel.onDisconnect.addListener(() => {
+          void chrome.runtime.lastError;
+          if (port !== channel) return;
+          port = undefined;
+          if (!closed && document.visibilityState === 'visible' && tries++ < 3)
+            timer = setTimeout(connect, 200 * tries);
+        });
+        channel.onMessage.addListener((msg) => {
+          if (
+            !closed &&
+            msg?.op === 'show' &&
+            msg.revision === revision &&
+            msg.route === routeToken
+          ) {
+            setFolded(false);
+            requestAnimationFrame(() => root.current?.focus());
+          }
+        });
+        channel.postMessage({ op: 'present', doc, origin, revision, route: routeToken });
+      } catch {
+        port?.disconnect();
+        port = undefined;
+        if (!closed && tries++ < 3) timer = setTimeout(connect, 200 * tries);
+      }
+    };
+    const posture = () => {
+      if (document.visibilityState === 'visible') {
+        tries = 0;
+        connect();
+      } else {
+        clearTimeout(timer);
+        port?.disconnect();
+        port = undefined;
+      }
+    };
+    document.addEventListener('visibilitychange', posture);
+    connect();
+    return () => {
+      closed = true;
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', posture);
+      port?.disconnect();
+    };
+  }, [tabId, doc, origin, revision, routeToken]);
+  const copy = currentWarningText(p, Date.now(), folded);
+  return (
+    <section
+      ref={root}
+      tabIndex={-1}
+      className="site-warning"
+      data-security=""
+      data-warning-mode={folded ? 'compact' : 'expanded'}
+      aria-label="Current website warning"
+    >
+      <div role="status" aria-atomic="true">
+        <strong>{copy.title}</strong>
+        {folded ? (
+          <p>{p.host}</p>
+        ) : (
+          <>
+            <dl className="warning-hosts">
+              {copy.rows.map((row) => {
+                const mark = row.label === 'Here' ? copy.difference : null;
+                return (
+                  <div key={row.label}>
+                    <dt>{row.label}</dt>
+                    <dd>
+                      {mark ? (
+                        <>
+                          {row.value.slice(0, mark.start)}
+                          <mark style={{ fontWeight: 700, textDecoration: 'underline' }}>
+                            {row.value.slice(mark.start, mark.end)}
+                          </mark>
+                          {row.value.slice(mark.end)}
+                        </>
+                      ) : (
+                        row.value
+                      )}
+                    </dd>
+                  </div>
+                );
+              })}
+            </dl>
+          </>
+        )}
+        {copy.findings.map((f) => (
+          <p key={f}>{f}</p>
+        ))}
+      </div>
+      {copy.advisory.map((a) => (
+        <p key={a.url}>
+          <a href={a.url} target="_blank" rel="noopener noreferrer">
+            {a.label}
+          </a>
+        </p>
+      ))}
+      {!folded && (
+        <details key={p.revision}>
+          <summary>Details</summary>
+          {copy.details.map((s) => (
+            <p key={s}>{s}</p>
+          ))}
+          {copy.sources.map((s) => (
+            <p key={s.url}>
+              <a href={s.url} target="_blank" rel="noopener noreferrer">
+                {s.label}
+              </a>
+            </p>
+          ))}
+        </details>
+      )}
+      <button aria-expanded={!folded} onClick={() => setFolded(!folded)}>
+        {folded ? 'Show warning' : 'Tuck warning'}
+      </button>
+      <button
+        onClick={() =>
+          void send({ kind: 'protection', action: { op: 'leave', revision: p.revision } })
+        }
+      >
+        Leave page
+      </button>
+      <button
+        onClick={() =>
+          void send({ kind: 'protection', action: { op: 'dismiss', revision: p.revision } })
+        }
+      >
+        Dismiss warning
+      </button>
+    </section>
+  );
+}
 export function useVisibleProtection(view: ProtectionView | undefined) {
   const [tick, refresh] = useState(0);
   const now = Date.now();
@@ -48,8 +214,8 @@ export function TargetProtection({v,send}:Props) {
   if(!target || v.protection?.origin!==v.origin) return null;
   return <section className="site-warning" data-security="" aria-label="Selected destination coverage">
     <strong>Selected {target.kind} destination</strong><p role="status">{target.message}</p>
-    {target.result && <><small>{target.result.source} · {new Date(target.result.checkedAt).toLocaleString()}</small>
-      <ThreatLinks r={target.result}/></>}
+    {target.result && <><ThreatLinks r={target.result}/>
+      <details><summary>Details</summary><small>{target.result.source} · {new Date(target.result.checkedAt).toLocaleString()}</small></details></>}
     {target.limitedTicket && <button onClick={()=>void send({kind:'protection',action:{op:'allowLimitedTarget',
       revision:v.protection!.revision,ticket:target.limitedTicket!}})}>Accept limited coverage for this destination</button>}
   </section>;

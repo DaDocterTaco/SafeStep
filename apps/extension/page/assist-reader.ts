@@ -11,12 +11,14 @@ import {
   type AssistAction,
   wikiCitationSubject,
   wikiCurrentSection,
+  wikiSectionRequest,
   wikiExportGoal,
 } from '@safestep/contracts';
 import { wikipediaControl, wikipediaForm } from './public-search';
+import {cueSurface} from './cue-geometry';
 import {catalogSearchForm,catalogReadings,pilotControl,pilotCompletion,wikiAmbiguity} from './site-capabilities';
 export const privateRegion =
-  'form,input,textarea,select,[contenteditable]:not([contenteditable=false]),[hidden],[inert],[aria-hidden=true],iframe,script,style,pre,code[class*=interactive],template,[data-safestep-outline],[data-safestep-clean],[role=alert],[role=alertdialog],[role=dialog],[aria-modal=true],[data-private],[data-account],[data-personal],[data-shopping-evidence],[aria-label*=Sponsored i],aside[aria-label=Advertisement i],[data-ad-region],[aria-label*="signed in" i],[aria-label*="account menu" i],[aria-label*="order history" i],[aria-label*=payment i],[aria-label*=checkout i]';
+  'form,input,textarea,select,[contenteditable]:not([contenteditable=false]),[hidden],[inert],[aria-hidden=true],iframe,script,style,pre,code[class*=interactive],template,[data-safestep-outline],[data-safestep-instruction],[data-safestep-dock],[data-safestep-clean],[role=alert],[role=alertdialog],[role=dialog],[aria-modal=true],[data-private],[data-account],[data-personal],[data-shopping-evidence],[aria-label*=Sponsored i],aside[aria-label=Advertisement i],[data-ad-region],[aria-label*="signed in" i],[aria-label*="account menu" i],[aria-label*="order history" i],[aria-label*=payment i],[aria-label*=checkout i]';
 const risky =
   /\b(save|submit|buy|checkout|pay|subscribe|log ?in|sign ?in|log ?out|delete|upload|download|consent|accept cookies|reject cookies|vote|send message|run code)\b/i;
 export function labelOf(el: HTMLElement) {
@@ -82,6 +84,7 @@ export function walkPublic(root: Element, limit: number, visit: (e: HTMLElement)
   }
   return { visited: Math.min(n, limit), limited: !!el };
 }
+import { withinScrollArea, revealCue } from './cue-geometry';
 export function inViewport(e: HTMLElement) {
   const r = e.getBoundingClientRect();
   return (
@@ -204,14 +207,25 @@ export const signature = (el: HTMLElement,goal='') => {
   return e ? JSON.stringify(e) : null;
 };
 export function hit(el: HTMLElement) {
-  if(getComputedStyle(el).pointerEvents==='none')return false;
+  // The registered Vector Tools input is transparent, with a visible label.
+  // Require that exact surface when the site transfers pointer hit testing to
+  // the label. Other hidden inputs and covered targets remain ineligible.
+  const usesLabel=el.tagName==='INPUT' && el.id==='vector-page-tools-dropdown-checkbox' &&
+    location.origin==='https://en.wikipedia.org' && getComputedStyle(el).opacity==='0';
+  const surface=usesLabel?cueSurface(el):el;
+  if((usesLabel && surface===el) || (!usesLabel && getComputedStyle(surface).pointerEvents==='none'))return false;
   // A wrapped link has a separate box on each line. Sampling their enclosing
   // rectangle can hit surrounding text even while the link itself is exposed.
-  return [...el.getClientRects()].slice(0,16).some(r=>{
+  return [...surface.getClientRects()].slice(0,16).some(r=>{
     const l=Math.max(0,r.left),t=Math.max(0,r.top),
       w=Math.min(innerWidth,r.right)-l,h=Math.min(innerHeight,r.bottom)-t;
-    return w>0 && h>0 && [[0.5,0.5],[0.2,0.6],[0.8,0.4]].some(([x,y])=>
-      el.contains(document.elementFromPoint(l+w*x!,t+h*y!)));
+    return w>0 && h>0 && [[0.5,0.5],[0.2,0.6],[0.8,0.4]].some(([x,y])=>{
+      const receiver=document.elementFromPoint(l+w*x!,t+h*y!);
+      if(el.contains(receiver))return true;
+      if(!receiver || surface===el || !surface.contains(receiver))return false;
+      const interactive=receiver.closest('a[href],button,input,select,textarea,summary,[role=button],[role=link],[contenteditable=true]');
+      return !interactive || interactive===surface || !surface.contains(interactive);
+    });
   });
 }
 function sectionId(e: HTMLElement) {
@@ -529,7 +543,9 @@ export function scanAssist(goal: string, terms: string[] = [], previous?: Map<st
     if (budget <= 0) break;
   }
   // Named section verification is an observation, independent of a model's "done".
-  const currentSection=profile==='wikipedia'?wikiCurrentSection(goal):null;
+  const sectionRequest=profile==='wikipedia'?wikiSectionRequest(goal):null;
+  const currentSection=sectionRequest && !sectionRequest.ambiguous && (!sectionRequest.subject||articleMatchesQuery(path,sectionRequest.subject))
+    ?sectionRequest.section:null;
   if(currentSection) {
     const wanted=[...document.querySelectorAll<HTMLElement>('main h2, main h3')].slice(0,180)
       .filter(e=>samePublicTitle(labelOf(e),currentSection));
@@ -646,8 +662,9 @@ export function validateTarget(
     throw Error('The target changed. Inspect again.');
   if ([...registry.values()].filter((x) => x.signature === local.signature).length !== 1)
     throw Error('More than one matching target.');
-  if (scroll && !inViewport(el)) el.scrollIntoView({ block: 'center', behavior: 'instant' });
-  if (signature(el,local.goal) !== local.signature || ((scroll || inViewport(el)) && !hit(el)))
+  const inView=inViewport(el) && withinScrollArea(el);
+  if (scroll) revealCue(el);
+  if (signature(el,local.goal) !== local.signature || ((scroll || inView) && !hit(el)))
     throw Error('The target is covered or unavailable.');
   return el;
 }

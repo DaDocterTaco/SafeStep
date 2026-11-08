@@ -15,6 +15,7 @@ import {
   wikiCitationPage,
   wikiCitationSubject,
   wikiCurrentSection,
+  wikiSectionRequest,
   wikiExportGoal,
   catalogGoal,
   publisherBrowseGoal,
@@ -26,6 +27,8 @@ import {
   publicCatalogPath,
   publicPath,
   profileForPage,
+  isWinSCP,
+  publicStepInstruction,
   validAssistInput,
   sameBinding,
   type AssistBinding,
@@ -117,6 +120,19 @@ const statusText: Record<string, string> = {
 };
 export class AdaptiveNavigation {
   private runs = new Map<number, Run>();
+  guideTarget(s: RecordState, tab: chrome.tabs.Tab) {
+    const task = s.cp.task;
+    const run = this.runs.get(s.cp.tabId);
+    const binding = run?.b;
+    if (!binding || !run.selected || run.abort.signal.aborted || !tab.active ||
+        task?.state !== 'showing_step' || task.mode !== 'guide' ||
+        task.id !== binding.taskId || task.adaptive?.version !== binding.goalVersion ||
+        s.cp.epoch !== binding.epoch || task.documentId !== binding.documentId ||
+        task.revision !== binding.revision || tab.windowId !== binding.windowId ||
+        !tab.url || new URL(tab.url).origin !== task.adaptive.origin) return undefined;
+    const { label, path, targetOrigin } = run.selected;
+    return { label, path, targetOrigin };
+  }
   private trails = new Map<number,{catalog:string;tenant:string;expires:number}>();
   private sequence = 0;
   constructor(
@@ -482,6 +498,9 @@ export class AdaptiveNavigation {
       const snap = n===0 && settledDisclosure && r.snap===settledDisclosure
         ? settledDisclosure
         : r.inspectArrival ? await this.inspectReadyArrival(s,r,terms) : await this.inspect(s,r,terms);
+      if(a.profile==='wikipedia' && wikiSectionRequest(t.goal)?.ambiguous){
+        return this.pause(s,'Which Wikipedia article do you mean? Give its title so I can find the requested section there.');
+      }
       if(snap.ambiguity){
         const choices=snap.ambiguity.slice(0,3).join(', ').slice(0,110);
         await this.pause(s,'Wikipedia lists several meanings. Which article do you want?'+(choices?' '+choices+'.':''));
@@ -500,7 +519,8 @@ export class AdaptiveNavigation {
         await this.active(s, r);
         if (!ready || (await probe(t.tabId, a.origin)) !== doc)
           throw Error(
-            'A unique current publisher download could not be verified. Check the package and alternatives.',
+            isWinSCP(a.download) ? 'The requested package could not be verified. If an ad covers the page, use its own Close ad control, then retry.' :
+              'A unique current publisher download could not be verified. Check the package and alternatives.',
           );
         this.live(s, r);
         t.state = 'completed';
@@ -626,12 +646,7 @@ export class AdaptiveNavigation {
             ? 'Open the outlined listing on '+new URL(target.targetOrigin!).hostname+' yourself. Click SafeStep there to grant access, then check this seller or compare this offer.'
           : target.action==='handoff_catalog'
             ? 'The outlined Shop link goes to the public marketplace on resell.store. Choose it yourself and grant access on arrival.'
-          : target.role === 'heading'
-            ? 'Reveal the observed section: ' + target.label
-            : target.label +
-              ' is a current ' +
-              target.role +
-              (target.path ? ' to ' + target.path : '.')
+          : publicStepInstruction(target)
       ).slice(0, 180);
       t.state = 'showing_step';
       if(target.action==='handoff_storefront'||target.action==='handoff_catalog'||target.action==='identify_article_export'){
@@ -886,17 +901,20 @@ export class AdaptiveNavigation {
     if (action === 'reveal') {
       const r = this.runs.get(t.tabId);
       if (!r?.selected || !r.b) throw new Fault('stale_document');
+      const target=r.selected,binding=r.b;
       this.launch(s, r, async () => {
-        await this.active(s, r);
-        if (r.selected!.role === 'heading')
-          r.reveal = { path: r.from!.split('#')[0]!, doc: r.b!.documentId };
-        await this.send(r.b!, {
+        const current=await this.active(s, r);
+        // A pending Show step cannot scroll a later document or a new target.
+        if(r.selected!==target || r.b!==binding || this.selectedWikiHandoff(s,current))return;
+        if (target.role === 'heading')
+          r.reveal = { path: r.from!.split('#')[0]!, doc: binding.documentId };
+        await this.send(binding, {
           op: 'cue',
-          ref: r.selected!.ref,
-          action: r.selected!.action,
+          ref: target.ref,
+          action: target.action,
           scroll: true,
         });
-        if (r.selected!.role === 'heading') await this.verifyLocal(s, r);
+        if (target.role === 'heading' && r.selected===target && r.b===binding) await this.verifyLocal(s, r);
       });
       return;
     }
@@ -937,6 +955,22 @@ export class AdaptiveNavigation {
     } while(Date.now()<deadline);
     throw Error('The expected public document did not become ready. Resume or take over.');
   }
+  /** A real Guide click is already in flight. Only the selected Wikipedia
+   * article and its existing results/normalization addresses can wait. This
+   * never authorizes an action or makes these addresses eligible to inspect. */
+  selectedWikiHandoff(s:RecordState,tab:chrome.tabs.Tab,raw=tab.url) {
+    const task=s.cp.task,a=task?.adaptive,r=this.runs.get(s.cp.tabId);
+    if(!task || !a || !r?.b || !raw || !tab.active || tab.id!==s.cp.tabId || tab.windowId!==s.windowId ||
+        r.b.taskId!==task.id || r.b.windowId!==tab.windowId || r.b.goalVersion!==a.version ||
+        ['paused','completed','cancelled','failed'].includes(task.state) || a.profile!=='wikipedia' ||
+        !a.searchQuery || a.authorized || r.from!=='/wiki/Special:Search' ||
+        r.searchDocument!==r.b.documentId || r.selected?.action!=='activate_readonly_link' ||
+        r.selected.ref!==r.userSelection || !r.selected.path || !articleMatchesQuery(r.selected.path,a.searchQuery))return false;
+    const u=new URL(raw);
+    if(u.origin!==a.origin)return false;
+    return publicPath(u,'wikipedia')===r.selected.path || wikipediaSearchUrl(u,a.searchQuery) ||
+      !!pendingWikipediaArticle(u,r.selected.path,a.searchQuery,wikipediaArticleProvenance);
+  }
   async navigation(s: RecordState, change: chrome.tabs.OnUpdatedInfo, t: chrome.tabs.Tab) {
     const task = s.cp.task!,
       a = task.adaptive!,
@@ -957,12 +991,7 @@ export class AdaptiveNavigation {
       ['paused', 'completed', 'cancelled'].includes(task.state)
     )
       return;
-    if (u && path === null && t.active && t.windowId === s.windowId &&
-        a.profile === 'wikipedia' && a.searchQuery && !a.authorized &&
-        r.from === '/wiki/Special:Search' && r.searchDocument === r.b?.documentId &&
-        r.b && r.selected?.action === 'activate_readonly_link' && r.selected.path &&
-        r.selected.ref === r.userSelection &&
-        pendingWikipediaArticle(u,r.selected.path,a.searchQuery,wikipediaArticleProvenance)) {
+    if (u && path === null && this.selectedWikiHandoff(s,t)) {
       // The user's exact search result may briefly pass through the site's
       // rewriting addresses. Keep all operations suspended until the clean,
       // selected article commits. A changed field or another title fails closed.

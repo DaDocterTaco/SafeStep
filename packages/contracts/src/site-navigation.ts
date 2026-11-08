@@ -10,9 +10,16 @@ export function wikiCitationSubject(goal:string):string|null {
   const t=m?.[1]?.trim();
   return t && publicWords.test(t) && !/^(?:this|current|the current)$/i.test(t)?t:null;
 }
+export function wikiSectionRequest(goal:string) {
+  const m=/\b(?:find|show|reveal|locate|open|to)\s+(?:me\s+)?(?:the\s+)?([\p{L}][\p{L} '’-]{0,55}?)(?:\s+section)?\s+(?:on|of|in)\s+(?:this|the current|the)\s+(?:(.{1,85}?)\s+)?(?:article|page)[.!?]*$/iu.exec(goal.trim());
+  if(!m)return null;
+  const subject=m[2]?.replace(/\s+Wikipedia$/i,'').trim()??null;
+  if(subject && !publicWords.test(subject))return null;
+  return {section:m[1]!.trim(),subject:subject&&subject.toLowerCase()!=='wikipedia'?subject:null,
+    ambiguous:!!subject && (/^(?:other|previous|last|earlier|different|first|second|that|same)\b/i.test(subject) || /\sor\s/i.test(subject))};
+}
 export function wikiCurrentSection(goal:string) {
-  const m=/\b(?:find|show|reveal|locate|open|to)\s+(?:me\s+)?(?:the\s+)?([\p{L}][\p{L} '’-]{0,55}?)(?:\s+section)?\s+(?:on|of|in)\s+(?:this|the current|the)\s+(?:[\p{L} -]+?\s+)?(?:article|page)\b/iu.exec(goal);
-  return m?.[1]?.trim()??null;
+  return wikiSectionRequest(goal)?.section??null;
 }
 // Identify only the export control for the current public article. The link is
 // a manual handoff even when the user selected automatic navigation.
@@ -85,7 +92,9 @@ export function catalogGoal(g:string) {
   const category=catalogKinds.find(c=> c!=='everything' && new RegExp('\\b'+c+'\\b').test(lower))??null;
   const ceiling=/\b(?:under|below|less than|at most|up to)\s*(?:USD\s*|\$\s*)(\d{1,6}(?:\.\d{1,2})?)/i.exec(g);
   const sort=/\b(?:lowest|cheapest|low to high)\b/i.test(g)?'price-asc':/\b(?:highest|high to low)\b/i.test(g)?'price-desc':null;
-  const raw=g.split(/\b(?:then|and then|and (?:check|assess|compare))\b/i)[0]!.trim().replace(/[.!?,]+$/,'')
+  const publicSubject=g.split(/\b(?:then|and then|and (?:check|assess|compare))\b/i)[0]!;
+  const raw=(ceiling?publicSubject.replace(ceiling[0],' '):publicSubject).replace(/\s*,?\s*(?:sorted by |sort by )?(?:lowest|highest) price\b/ig,' ')
+    .trim().replace(/[.!?,]+$/,'')
     .replace(/^.*?\b(?:find|search(?: for)?|locate|open|show|browse|compare)\s+(?:me\s+)?/i,'')
     .replace(/^(?:a|an|the)\s+|\b(?:confirmed|current)\s+/gi,'')
     .replace(/\s+(?:in|on|at|from)\s+(?:the |this )?(?:public )?(?:marketplace|catalog|home|resell\b).*$/i,'')
@@ -97,7 +106,8 @@ export function catalogGoal(g:string) {
   const unavailableControl=/\b(?:condition|used|refurbished|brand new)\b/i.test(g)?'Condition':
     /\b(?:size|sizing)\b/i.test(g)?'Size':null;
   const more=/\b(?:show|load|see|browse|view)\s+(?:me\s+)?(?:some\s+)?more\s+(?:(?:catalog|marketplace|public)\s+)?(?:results|listings|items|things)\b/i.test(g);
-  return {category,ceiling:ceiling?Number(ceiling[1]):null,inclusive:/\b(?:at most|up to)\b/i.test(ceiling?.[0]??''),
+  const inclusive=/\b(?:at most|up to)\b/i.test(ceiling?.[0]??'');
+  return {category,ceiling:ceiling?Number(ceiling[1]):null,inclusive,under25:!!ceiling && Number(ceiling[1])===25 && !inclusive,
     more,unavailableControl,unknownBudget,sort,subject:allowed?raw:null,query:!category&&allowed&&!more&&!unavailableControl?search:null,wantsOffer};
 }
 export function tenantOrigin(u:URL){

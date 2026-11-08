@@ -260,6 +260,7 @@ export class Protection {
       host: a.host,
       revision: crypto.randomUUID(),
       identity: a.identity,
+      ...(['amazon_us','deceptive','mismatch'].includes(a.identity)?{expectedHost:'amazon.com'}:{}),
       address: a.address,
       checkedAt: now,
       status: a.privateRoute ? 'private' : 'local',
@@ -727,6 +728,14 @@ export class Protection {
       await chrome.tabs.update(id, { url: 'about:blank' });
     }
   }
+  openWarning(sender:chrome.runtime.MessageSender,revision:unknown,route:unknown) {
+    const tab=sender.tab,c=tab?.id===undefined?undefined:this.current.get(tab.id);
+    // Chrome requires the trusted click gesture before any asynchronous call.
+    if(sender.id!==chrome.runtime.id || sender.frameId!==0 || !tab?.active || !c ||
+      c.doc!==sender.documentId || c.raw!==sender.url || c.route!==route ||
+      c.view.revision!==revision || !c.view.caution || c.view.dismissed)return;
+    return chrome.sidePanel.open({windowId:tab.windowId});
+  }
   async navigation(id: number, ch: chrome.tabs.OnUpdatedInfo, _eventTab: chrome.tabs.Tab) {
     if (!ch.url && ch.status !== 'loading' && ch.status !== 'complete') return;
     const t=await chrome.tabs.get(id), prior=this.current.get(id);
@@ -808,11 +817,16 @@ export class Protection {
       await this.show(c,v=>({...v,destination:{kind:v.destination!.kind,message:'Limited coverage accepted once. Retry this same destination to continue.'}}));
       return;
     }
-    if (cmd.op === 'dismiss' || cmd.op === 'recheck' || cmd.op==='threat') {
+    if (cmd.op === 'dismiss' || cmd.op === 'leave' || cmd.op === 'recheck' || cmd.op==='threat') {
       const c = this.current.get(id);
       if (!c || c.view.revision !== cmd.revision || !(await this.bound(c)))
         throw new Fault('stale_document');
       if (cmd.op === 'dismiss') await this.show(c,current=>current,true);
+      else if(cmd.op==='leave') {
+        const owner=await chrome.tabs.get(id);
+        if(!c.view.caution || c.view.dismissed || !owner.active || !(await chrome.windows.get(owner.windowId)).focused || !(await this.isCurrent(owner,c.view))) throw new Fault('stale_document');
+        await chrome.tabs.update(id,{url:'about:blank'});
+      }
       else if(cmd.op==='threat') await this.startThreat(c,cmd.scope);
       else if (![...this.jobs.values()].some(j=>j.targets.has(c))) await this.arrive(id, c.doc, true);
       return;

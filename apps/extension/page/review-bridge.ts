@@ -1,3 +1,4 @@
+import { cueMutation } from './cue-owned';
 import {
   parseWire,
   ReviewPageRequest,
@@ -7,6 +8,7 @@ import {
 } from '@safestep/contracts';
 import { readReview } from './review-reader';
 import { Outline } from './overlay';
+import { products } from '../sites/downloads';
 import { placement } from '../sites/workflow';
 type Read = ReturnType<typeof readReview>;
 function signature(read: Read) {
@@ -66,8 +68,10 @@ export function installReviewBridge() {
     return selected === now;
   }
   const privateSelector =
-    'input,select,textarea,[contenteditable],script,style,[data-safestep-outline]';
+    'input,select,textarea,[contenteditable],script,style,[data-safestep-outline],[data-safestep-instruction],[data-safestep-dock]';
   new MutationObserver((records) => {
+    records=records.filter(r=>!cueMutation(r));
+    if(!records.length)return;
     if (!current) return;
     if (
       outline.host &&
@@ -83,7 +87,7 @@ export function installReviewBridge() {
       if (
         r.type === 'childList' &&
         [...r.addedNodes, ...r.removedNodes].every(
-          (n) => n instanceof HTMLElement && n.hasAttribute('data-safestep-outline'),
+          (n) => n instanceof HTMLElement && n.matches('[data-safestep-outline],[data-safestep-instruction],[data-safestep-dock]'),
         )
       )
         return false;
@@ -201,7 +205,8 @@ export function installReviewBridge() {
             throw Error();
           }
         }
-        outline.show(target);
+        const selection = current.data.selection;
+        outline.show(target,selection.kind === 'download' ? 'Review the ' + products[selection.profile].package + ' control' : undefined);
         current.data.placement = placement(target);
         reply.data = current.data;
       }

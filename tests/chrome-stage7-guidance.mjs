@@ -208,7 +208,9 @@ async function run(name, width) {
               'Entered the displayed approved public search query and pressed Enter',
             );
           } else if (/^h[1-4]$/.test(tag)) {
-            await btn(s.panel, 'Show this target').click();
+            const reveal = await s.panel.$('button[data-show-step]');
+            if (reveal) await reveal.click();
+            else await btn(s.panel, 'Show this target').click();
           } else {
             await el.click();
             r.websiteActionsByHarness.push('Clicked the currently outlined ' + tag);

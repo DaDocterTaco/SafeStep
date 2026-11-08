@@ -323,7 +323,9 @@ async function run(name, width) {
       const client = await s.page.createCDPSession();
       await client.send('Accessibility.enable');
       const ax = await client.send('Accessibility.getFullAXTree');
-      for (const text of ['View reasons', 'Dismiss', 'Leave page'])
+      const dismissalName=ax.nodes.some(n=>n.name?.value==='Dismiss warning')?'Dismiss warning':'Dismiss';
+      const detailLabel=ax.nodes.some(n=>n.name?.value==='Details')?'Details':'View reasons';
+      for (const text of [detailLabel, dismissalName, 'Leave page'])
         assert(
           ax.nodes.some(
             (n) =>
@@ -332,11 +334,11 @@ async function run(name, width) {
           ),
           'page warning button ' + text,
         );
-      await clickWarning(s, 'View reasons');
+      await clickWarning(s, detailLabel);
       const rendered = await client.send('Accessibility.getFullAXTree');
       r.warningControls = rendered.nodes
         .filter((n) =>
-          ['View reasons', 'SafeStep warning', 'Dismiss', 'Leave page'].includes(n.name?.value),
+          [detailLabel, 'SafeStep warning', dismissalName, 'Leave page'].includes(n.name?.value),
         )
         .map((n) => ({
           role: n.role?.value,
@@ -365,7 +367,7 @@ async function run(name, width) {
           t.url.endsWith(s.id + '/sidepanel.html'),
         ),
       );
-      await clickWarning(s, 'Dismiss');
+      await clickWarning(s, dismissalName);
       await s.page.waitForSelector('[data-safestep-protection]', { hidden: true, timeout: 6500 });
       const dismissed = await wait(async () => {
         const v = await receipt();

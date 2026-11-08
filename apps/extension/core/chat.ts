@@ -27,7 +27,7 @@ import { protectionAddress } from '../sites/protection';
 import { expectedAddress, explainExpectedAddress } from '../sites/expected-address';
 import { publisherChoice } from '../sites/publisher-goal';
 import { localSiteGoal } from './adaptive';
-import { products } from '../sites/downloads';
+import { products, packageLabel } from '../sites/downloads';
 import { comparisonRoute } from '../sites/comparison';
 import { shoppingRoute } from '../sites/shopping';
 import { chatScopeSignature } from '../page/chat-scope';
@@ -52,6 +52,7 @@ type Owner = {
   turn: ChatTurn;
   abort: AbortController;
   tab: chrome.tabs.Tab;
+  reveal?: boolean;
 };
 type Routed = Extract<ChatRouteDecision, { kind: 'routed' }>;
 const navigation = (f: FeatureId | undefined) =>
@@ -78,12 +79,15 @@ const label = (s: string) =>
     .replace(/[.!?]+$/, '');
 const chooseProfile = (text: string) =>
   (Object.keys(products) as FileProfile[]).find(
-    (id) => label(text) === label(products[id].name + ' · Windows x64 EXE'),
+    (id) => label(text) === label(packageLabel(id)),
   );
-const selectedLabel = (id: FileProfile) => products[id].name + ' · Windows x64 EXE';
+const selectedLabel = packageLabel;
+const restoreRequest = (text: string) => /^(?:please\s+)?restore (?:the |this )?page[.!?]?$/i.test(text.trim());
+const adPreviewRequest = (text: string) => /^(?:please\s+)?(?:hide|remove|preview)\s+(?:the\s+)?(?:ads|advertisements)\b/i.test(text.trim());
 function localFeature(text: string, url: string): FeatureId | null {
   const predefined = fixed[label(text)];
   if (predefined) return predefined;
+  if (adPreviewRequest(text) || restoreRequest(text)) return 'page_cleanup';
   if (['videolan_windows_page', 'wikipedia_cite_apa'].includes(resolveGoal(text)))
     return 'visual_guidance';
   const u = new URL(url);
@@ -295,14 +299,15 @@ export class Chat {
       return this.store.save(s);
     }
   }
-  async changed(s: RecordState, navigationOccurred = false) {
+  async changed(s: RecordState, navigationOccurred = false, selectedWikiHandoff = false) {
     const c = s.cp.chat;
     if (!c) return;
     const active = c.turns.find((t) => t.id === c.activeTurnId);
     const pending = this.abort(s);
     // Expected navigation must still be verified by the existing task engine.
     if (
-      !pending &&
+      (!pending || (selectedWikiHandoff && pending.reveal && pending.turn===active &&
+        pending.conversation===c && pending.tab.id===s.cp.tabId)) &&
       navigationOccurred &&
       active?.taskId &&
       navigation(active.feature) &&
@@ -501,7 +506,16 @@ export class Chat {
               : selectedLocalGuide
                 ? parent!.feature
                 : null;
-      if (shortcut) {
+      if (!shortcut && (restoreRequest(goal) || adPreviewRequest(goal))) {
+        turn.feature = 'page_cleanup';
+        await this.dispatch(s,o,'page_cleanup',true);
+      } else if (!shortcut && tab.url && new URL(tab.url).origin === 'https://winscp.net' &&
+          publisherChoice(goal, 'https://winscp.net').kind === 'ready') {
+        // The local tool is known; paired intent/step generation still uses
+        // the ordinary adaptive engine and its subject/constraint validation.
+        turn.feature = 'download_guidance';
+        await this.dispatch(s,o,'download_guidance',false);
+      } else if (shortcut) {
         turn.feature = shortcut;
         if (selection) turn.profile = selection;
         await this.dispatch(s, o, shortcut, true);
@@ -765,7 +779,7 @@ export class Chat {
         this.finish(
           o,
           'awaiting_user',
-          'Show me will start the guide to ' + workflows[workflow].name + '.',
+          'Ready to show you the first step.',
         );
         return;
       }
@@ -802,6 +816,17 @@ export class Chat {
       return;
     }
     if (feature === 'page_cleanup') {
+      if (restoreRequest(goal)) {
+        if (!s.cleanup || s.cleanup.binding.documentId !== turn.documentId || !s.cleanup.hidden) {
+          this.finish(o,'completed','There are no hidden SafeStep regions on this document.');
+          return;
+        }
+        await this.send(s,tab,{kind:'clean',action:'restore'});
+        if (!this.owns(s,o)) return;
+        if (s.cleanup?.hidden) throw new Fault('stale_document');
+        this.finish(o,'completed','Restored the page regions hidden by SafeStep.');
+        return;
+      }
       await this.send(s, tab, { kind: 'clean', action: 'preview' });
       if (!this.owns(s, o)) return;
       if (!s.cleanup || s.cleanup.binding.documentId !== turn.documentId)
@@ -934,7 +959,7 @@ export class Chat {
     const turn = c.turns.find((x) => x.id === action.turnId);
     if (!turn || c.activeTurnId !== turn.id || turn.historical || turn.role !== 'assistant')
       throw new Fault('stale_document');
-    const o: Owner = { conversation: c, turn, tab: t, abort: new AbortController() };
+    const o: Owner = { conversation: c, turn, tab: t, abort: new AbortController(), reveal: action.action==='reveal' };
     this.abort(s);
     this.current.set(s.cp.tabId, o);
     s.abortChat = () => {
@@ -1097,7 +1122,11 @@ export class Chat {
         turn.documentId &&
         turn.origin
       ) {
+        const epoch = s.cp.epoch, revision = s.chatRevision, state = task.state;
         const current = await probe(t.id!, turn.origin).catch(() => null);
+        // A completed older refresh has no authority over a replacement turn or task.
+        if (s.cp.chat !== c || c.activeTurnId !== turn.id || turn.historical || s.cp.task !== task ||
+            task.state !== state || s.cp.epoch !== epoch || s.chatRevision !== revision || this.current.has(s.cp.tabId)) return;
         if (current !== turn.documentId || permittedOrigin(t.url) !== turn.origin) {
           retireTurns(c);
           return;
@@ -1134,12 +1163,16 @@ export class Chat {
       )
         turn.operationId = s.review.binding.operationId;
       if (task.adaptive) turn.version = task.adaptive.version;
-      const guide = s.snapshot?.guide;
-      turn.text = (
-        task.adaptive?.status ||
-        (guide ? workflows[guide.workflow].steps[guide.step - 1] : null) ||
-        turn.text
-      ).slice(0, 600);
+      const guide = task.guide;
+      if (task.adaptive?.status) {
+        turn.text = task.adaptive.status.slice(0, 600);
+      } else if (guide) {
+        if (task.state === 'completed') turn.text = workflows[guide.workflow].done;
+        else if (task.state === 'cancelled') turn.text = 'Stopped by you.';
+        else if (task.state === 'paused' || task.state === 'failed')
+          turn.text = s.cp.issue ? messages[s.cp.issue] : 'Guidance is paused.';
+        else if (task.state === 'showing_step') turn.text = workflows[guide.workflow].steps[guide.step - 1]!;
+      }
       turn.state =
         task.state === 'completed'
           ? 'completed'

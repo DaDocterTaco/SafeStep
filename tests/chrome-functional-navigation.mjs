@@ -405,7 +405,9 @@ async function manual(s, t, r) {
       (e.localName === 'button' && !e.closest('form') && e.hasAttribute('aria-expanded')),
   }));
   if (/^h[1-4]$/.test(type.tag)) {
-    await button(s.panel, 'Show this target').click();
+    const reveal = await s.panel.$('button[data-show-step]');
+    if (reveal) await reveal.click();
+    else await button(s.panel, 'Show this target').click();
     return true;
   }
   if (type.tag === 'input') {

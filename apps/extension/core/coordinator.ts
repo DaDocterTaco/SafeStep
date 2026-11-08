@@ -23,6 +23,7 @@ import { PageCleanup } from './cleanup';
 import { Comparisons } from './comparison';
 import { Protection } from './protection';
 import { Chat } from './chat';
+import { CompactDock } from './dock';
 
 const fault = (e: unknown): ErrorCode => (e instanceof Fault ? e.code : 'blocked_by_policy');
 async function deadline<T>(p: Promise<T>, ms = 4500): Promise<T> {
@@ -47,12 +48,17 @@ export class Coordinator {
   readonly cleanup = new PageCleanup(this.store);
   readonly comparisons = new Comparisons(this.store, this.shopping,(...args)=>this.protection.destination(...args));
   readonly protection:Protection = new Protection(this.store,(s,why)=>this.adaptive.pause(s,why));
+  readonly dock=new CompactDock(this.store,(s,t,command)=>this.handle({
+    v:2,channel:'panel',requestId:crypto.randomUUID(),tabId:s.cp.tabId,windowId:t.windowId,
+    epoch:s.cp.epoch,documentId:s.snapshot?.context.documentId??null,revision:s.snapshot?.context.revision??null,command,
+  }), (s,why)=>this.adaptive.pause(s,why));
   readonly chat = new Chat(this.store,(s,t,command)=>this.handle({
     v:2,channel:'panel',requestId:crypto.randomUUID(),tabId:s.cp.tabId,windowId:t.windowId,
     epoch:s.cp.epoch,documentId:s.snapshot?.context.documentId??null,revision:s.snapshot?.context.revision??null,command,
   }));
   readonly ready = this.initialize();
   private async initialize() {
+    this.store.onStateChange=id=>this.dock.changed(id);
     await this.store.load();
     const sites = this.store.prefs.sites;
     this.store.prefs.sites = (
@@ -402,6 +408,7 @@ export class Coordinator {
         code === 'permission_revoked' || code === 'unsupported_page' ? code : 'permission_required';
     }
     const v=await this.store.view(s,t,site,status);
+    if (status === 'site' || status === 'temporary') v.guideTarget = this.adaptive.guideTarget(s, t);
     if(v.protection&&!await this.protection.isCurrent(t,v.protection))delete v.protection;
     return v;
   }
@@ -414,6 +421,9 @@ export class Coordinator {
     if (c.kind === 'view') return this.view(s, t);
     checkRequest(s, r);
     switch (c.kind) {
+      case 'tuck':
+        await this.dock.tuck(s,t,c.taskId);
+        break;
       case 'chat':
         await this.chat.operate(s,t,c.action);
         break;
@@ -455,6 +465,15 @@ export class Coordinator {
         break;
       case 'shopVerify':
       case 'shopReveal':
+        if(c.kind==='shopReveal'){
+          const d=s.shopping?.[c.subject]?.data;
+          if(!d || d.binding.operationId!==c.operationId)throw new Fault('stale_document');
+          if(d.more && d.target){
+            await this.shopping.act(s,t,c.subject,c.operationId,false);
+            const decision=await this.protection.destination(s,t,{kind:'source',url:d.more,documentId:d.binding.documentId},AbortSignal.timeout(7000));
+            if(!decision.allow)break;
+          }
+        }
         await this.shopping.act(s, t, c.subject, c.operationId, c.kind === 'shopReveal');
         break;
       case 'openShopSource': {
@@ -680,7 +699,8 @@ export class Coordinator {
     await this.ready;
     const s = this.store.tabs.get(id);
     if (!s) return;
-    if(change.url||change.status==='loading')await this.chat.changed(s,true);
+    if(change.url||change.status==='loading')
+      await this.chat.changed(s,true,this.adaptive.selectedWikiHandoff(s,t,change.url??t.url));
     if (
       s.comparison &&
       (change.url || change.status === 'loading') &&

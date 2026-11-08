@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {catalogGoal,catalogReadyForPlan,localPilotStep,pilotCandidates,publicCatalogPath,publicPath,publicSearchQuery,
-  storeListing,wikiCitationPage,wikiCitationSubject,wikiCurrentSection,wikiExportGoal,wikiExportTarget, type AssistSnapshot,type PublicRef} from '@safestep/contracts';
+  storeListing,wikiCitationPage,wikiCitationSubject,wikiCurrentSection,wikiSectionRequest,wikiExportGoal,wikiExportTarget, type AssistSnapshot,type PublicRef} from '@safestep/contracts';
 import {AdaptiveNavigation} from '../apps/extension/core/adaptive';
 import {Store} from '../apps/extension/core/store';
 import {hit} from '../apps/extension/page/assist-reader';
@@ -34,9 +34,31 @@ test('marketplace captures the wanted item and absolute budget rather than a nav
   const books=catalogGoal('Show books under USD 200, sorted by lowest price.');
   assert.equal(books.category,'books');assert.equal(books.ceiling,200);assert.equal(books.sort,'price-asc');
   assert(catalogGoal('show books under EUR 200').unknownBudget);
+  assert(catalogGoal('Show books below USD 25.').under25);
+  assert(!catalogGoal('Show books at most USD 25.').under25);
+  const pens=catalogGoal('Find fountain pens under USD 80, sorted by lowest price.');
+  assert.equal(pens.query,'fountain pens');assert.equal(pens.ceiling,80);assert.equal(pens.sort,'price-asc');
+  const priceButton={...ref('Price',null,'toggle_known_navigation'),role:'button' as const};
+  const selection=snapshot('catalog','/discover?category=books',[priceButton]);
+  assert.deepEqual(pilotCandidates('Show books under USD 25.',selection),[priceButton]);
+  assert.deepEqual(pilotCandidates('Show books at most USD 25.',selection),[]);
   assert.equal(publicCatalogPath(u('/discover?sort=price-asc&category=books')),'/discover?category=books&sort=price-asc');
   for(const path of ['/discover?email=a%40b.org','/discover?sort=buy','/discover?q=pen&q=book','/account','/discover?q=password%20secret'])
     assert.equal(publicCatalogPath(u(path)),null);
+});
+test('a named Wikipedia section cannot target the same section on another article',()=>{
+  const goal='Find References on the Mars article.';
+  const heading={...ref('References',null,'reveal_target'),role:'heading' as const};
+  const link=ref('Mars','/wiki/Mars'),other=ref('Atmosphere of Mars','/wiki/Atmosphere_of_Mars');
+  const current=snapshot('wikipedia','/wiki/Phishing#References',[link,other]);current.headings.push(heading);
+  assert.deepEqual(wikiSectionRequest(goal),{section:'References',subject:'Mars',ambiguous:false});
+  assert.equal(publicSearchQuery(goal),'Mars');
+  assert.deepEqual(pilotCandidates(goal,current),[link]);
+  assert.deepEqual(pilotCandidates(goal,{...current,path:'/wiki/Mars'}),[heading]);
+  assert.deepEqual(pilotCandidates('Find References on the current article.',current),[heading]);
+  const unclear='Find References on the previous article.';
+  assert(wikiSectionRequest(unclear)?.ambiguous);assert.equal(publicSearchQuery(unclear),null);
+  assert.deepEqual(pilotCandidates(unclear,current),[]);
 });
 test('Wikipedia export discovery is bound to the current article and never adds an automatic route',()=>{
   const goal='Show me the PDF export for this article.',path='/wiki/Phishing';
@@ -66,6 +88,30 @@ test('a wrapped text link needs an actual uncovered point in one of its visible 
   const values=[100,100,{elementFromPoint:(x:number,y:number)=>!covered && ((x>90&&y<10)||(x<15&&y>10))?target:null},()=>({pointerEvents:'auto'})];
   props.forEach((key,i)=>Object.defineProperty(globals,key,{value:values[i],configurable:true}));
   assert(hit(target as unknown as HTMLElement));covered=true;assert(!hit(target as unknown as HTMLElement));
+});
+test('Wikipedia Tools accepts its bound label or its own hit, and rejects an unrelated overlay or competing control',t=>{
+  const rect={left:10,top:10,right:42,bottom:42,width:32,height:32};
+  class Input {
+    tagName='INPUT';id='vector-page-tools-dropdown-checkbox';type='checkbox';disabled=false;labels:unknown[]=[];
+    getBoundingClientRect(){return rect;}
+    contains(other:unknown){return other===this;}
+  }
+  const input=new Input(),text={closest:()=>null},link={closest:()=>link},unrelated={closest:()=>null};
+  const label={control:input,checkVisibility:()=>true,getBoundingClientRect:()=>rect,getClientRects:()=>[rect],
+    contains:(other:unknown):boolean=>other===label||other===text||other===link,closest:()=>null};
+  input.labels=[label];
+  let receiver:unknown=input;
+  const values={innerWidth:100,innerHeight:100,HTMLInputElement:Input,
+    location:{origin:'https://en.wikipedia.org'},document:{elementFromPoint:()=>receiver},
+    getComputedStyle:(el:unknown)=>({opacity:el===input?'0':'1',pointerEvents:'auto'})};
+  for(const [key,value] of Object.entries(values)){
+    const original=Object.getOwnPropertyDescriptor(globalThis,key);
+    Object.defineProperty(globalThis,key,{value,configurable:true});
+    t.after(()=>{if(original)Object.defineProperty(globalThis,key,original);else Reflect.deleteProperty(globalThis,key);});
+  }
+  const element=input as unknown as HTMLElement;
+  assert(hit(element));receiver=text;assert(hit(element));receiver=unrelated;assert(!hit(element));
+  receiver=link;assert(!hit(element));receiver=text;input.labels=[label,label];assert(!hit(element));
 });
 test('only observed scoped candidates can advance a pilot task',()=>{
   const good=ref('Official FAQ','/support/faq.html'),unrelated=ref('Features','/vlc/features.html');

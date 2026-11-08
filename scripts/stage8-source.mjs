@@ -82,6 +82,12 @@ const files = [
     'FOUNDATION_PLAN.json',
     'RESEARCH_STATE.json',
     ...(ref.supplement==='automatic-web-risk-1'?['AUTOMATIC_WEB_RISK_PLAN.json','ALL_FEATURES_THREE_SITE_BUILD_PLAN.json','THREE_SITE_COVERAGE_PLAN.json','docs/automatic-web-risk-setup.md']:[]),
+    ...(Number(ref.version.split('.')[2]) >= 8
+      ? ['design/CLICK_CUE_HANDOFF.json', 'design/SPEC.json', 'design/EVALUATION_PLAN.json']
+      : []),
+    ...(Number(ref.version.split('.')[2]) >= 11
+      ? ['WINSCP_FINAL_PLAN.json', 'DOWNLOAD_DEMO_RESEARCH.json', 'WINSCP_AI_TEST_AUTHORIZATION.json']
+      : []),
     'apps/api/.env.example',
     pointerName,
     referenceName,

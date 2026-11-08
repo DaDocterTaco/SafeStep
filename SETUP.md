@@ -1,6 +1,6 @@
-# Build and load SafeStep 0.8.6
+# Build and load SafeStep 0.8.11
 
-This source checkpoint corresponds to `stage-8-35d021b232e3`. The [reference](docs/checkpoints/stage-8-35d021b232e3/reference.json) identifies the exact inputs and compiled outputs. Independent results on 0.8.1 and 0.8.4 refer to those earlier builds.
+This source checkpoint corresponds to `stage-8-2aeb36f98542`. The [reference](docs/checkpoints/stage-8-2aeb36f98542/reference.json) identifies the exact inputs and compiled outputs. Independent results on 0.8.1 and 0.8.4 refer to those earlier builds.
 
 ## Clean build
 
@@ -13,12 +13,12 @@ npm.cmd test
 node --test tests/stage8-paid-ledger-fixture.test.mjs
 npm.cmd run build
 npm.cmd run release:stage8
-node scripts/stage8-reference.mjs stage-8-35d021b232e3
+node scripts/stage8-reference.mjs stage-8-2aeb36f98542
 ```
 
-The release command prints the unpacked directory and its SHA-256. Expect `35d021b232e3f2db7bdd286cb65b81e2d568689879a0e6f077f89215b632829c`. The reference command measures the source inventory, compiled API, compiled contracts and chat routing schema. It writes its result under `docs/evidence/stage-8-35d021b232e3/`. The published reference includes the expected digest of each measured file.
+The release command prints the unpacked directory and its SHA-256. Expect `2aeb36f98542202c9810535a751c48ea53bc507f7d1593309cd103adc8637417`. The reference command measures the source inventory, compiled API, compiled contracts and chat routing schema. It writes its result under `docs/evidence/stage-8-2aeb36f98542/`. The published reference includes the expected digest of each measured file.
 
-Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked** and select `artifacts/stage-8-35d021b232e3/chrome-mv3`. Invoke SafeStep from the toolbar on a site you choose. Use `npm.cmd run fixture -- --port=0` in a second terminal for the labeled local practice pages. The fixture command prints their URLs.
+Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked** and select `artifacts/stage-8-2aeb36f98542/chrome-mv3`. Invoke SafeStep from the toolbar on a site you choose. Use `npm.cmd run fixture -- --port=0` in a second terminal for the labeled local practice pages. The fixture command prints their URLs.
 
 ## Local service and optional providers
 

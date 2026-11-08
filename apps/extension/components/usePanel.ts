@@ -193,9 +193,11 @@ export function usePanel() {
         )
           await ask(t, fresh, c);
       } else await ask(t, view, c);
+      return session.current === version;
     } catch (e) {
       if (session.current === version)
         setError(e instanceof Error ? e.message : messages.invalid_message);
+      return false;
     } finally {
       if (session.current === version) void refresh();
     }

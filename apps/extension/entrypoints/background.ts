@@ -12,7 +12,17 @@ export default defineBackground(() => {
     safe(chrome.sidePanel.open({ windowId: t.windowId }));
     safe(coordinator.invoked(t));
   });
+  chrome.sidePanel.onOpened?.addListener(({windowId,tabId})=>coordinator.dock.opened(windowId,tabId));
   chrome.runtime.onMessage.addListener((raw, sender, send) => {
+    if(raw?.channel==='open-current-warning'){
+      const result=coordinator.protection.openWarning(sender,raw.revision,raw.route);
+      if(result)safe(result);
+      return;
+    }
+    if(raw?.channel==='dock-control'){
+      void coordinator.dock.receive(raw,sender,coordinator.ready).then(ok=>send({ok}),()=>send({ok:false}));
+      return true;
+    }
     if(raw?.channel==='protection-page'){
       safe(coordinator.ready.then(()=>coordinator.protection.page(raw,sender)));return;
     }
@@ -75,6 +85,7 @@ export default defineBackground(() => {
     return true;
   });
   chrome.tabs.onActivated.addListener((a) => {
+    coordinator.dock.activated(a.tabId,a.windowId);
     safe(coordinator.activation(a));
     safe(coordinator.ready.then(()=>coordinator.protection.activated(a.tabId)));
   });
@@ -103,12 +114,14 @@ export default defineBackground(() => {
     ),
   );
   chrome.tabs.onUpdated.addListener((id, ch, t) => {
+    coordinator.dock.navigation(id,ch,t);
     safe(coordinator.ready.then(()=>coordinator.protection.navigation(id,ch,t)));
     safe(coordinator.navigation(id,ch,t));
   });
   chrome.tabs.onRemoved.addListener((id) =>
     safe(
       coordinator.ready.then(() => {
+        coordinator.dock.drop(id);
         safe(coordinator.protection.drop(id));
         coordinator.shopping.clearHistory(id);
         const s = coordinator.store.tabs.get(id);
@@ -146,6 +159,7 @@ export default defineBackground(() => {
       );
   });
   chrome.permissions.onRemoved.addListener((p) => {
+    if(p.origins?.length)coordinator.dock.revoked(p.origins);
     if (p.origins?.length) safe(coordinator.ready.then(() => coordinator.removeSites(p.origins!)));
   });
 });

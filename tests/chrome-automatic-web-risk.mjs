@@ -10,6 +10,7 @@ import { nativeSession } from './support/native-stage2.mjs';
 import { view } from './support/chrome-cases.mjs';
 import { startFixture } from './support/functional-navigation-fixture.mjs';
 import { fingerprint } from '../scripts/stage1.mjs';
+import { verifyFoldedPositive } from './support/folded-warning.mjs';
 
 const id = process.argv[2],
   bundle = resolve('artifacts', id, 'chrome-mv3');
@@ -73,6 +74,7 @@ for (const width of [1440, 1366]) {
     fixture = await startFixture(spec, row, '127.0.0.6', provider);
     const initial = 'https://en.wikipedia.org/wiki/Main_Page';
     session = await nativeSession(bundle, width, width === 1440 ? 900 : 768, initial, {
+      requireUsablePanel:true,
       apiHost: '127.0.0.6',
       prepare: async (p) => {
         await p.setRequestInterception(true);
@@ -178,6 +180,7 @@ for (const width of [1440, 1366]) {
       if (url === urls[0]) {
         await s.page.waitForSelector('[data-safestep-protection]', { timeout: 12000 });
         await screenshot(s.page, 'closed-warning');
+        if (process.env.SAFESTEP_FOLDED_ATTRIBUTION === '1') await verifyFoldedPositive(s,row,dir);
         const count = row.requests.filter((q) => q.url === url).length;
         await s.page.evaluate(() => {
           location.hash = 'History';
